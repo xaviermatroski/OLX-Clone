@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IIT Ropar Marketplace</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <!-- Bootstrap CSS for responsive design -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <a class="navbar-brand" href="#">
+            <img src="/images/iitropar_logo.jpg" alt="IIT Ropar Logo" height="50">
+            IIT Ropar Marketplace
+        </a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="#about">About</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#guidelines">Guidelines</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#contact">Contact</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link custom-btn login-btn" href="/login">Login</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Header Section with Background Image -->
+    <header class="header" style="background-image: url('/images/iitropar_background_image.jpg');">
+        <div class="overlay"></div>
+        <div class="container text-center text-white">
+            <h1>Welcome to the IIT Ropar Marketplace</h1>
+            <p>Buy, Sell, and Exchange within the IIT Ropar Community</p>
+            <a href="<%= isAuthenticated ? '/user/' + user_name : '/login' %>" class="btn btn-lg custom-btn action-btn">Buy & Sell</a>
+        </div>
+    </header>
+
+    <!-- About Section -->
+    <section id="about" class="py-5 bg-gradient-primary">
+        <div class="container">
+            <h2 class="text-center title-shadow">About Our Platform</h2>
+            <p class="lead text-center content-text">Our marketplace is designed exclusively for the IIT Ropar community, allowing students, faculty, and staff to buy, sell, and exchange items in a trusted environment.</p>
+        </div>
+    </section>
+
+    <!-- Guidelines Section -->
+    <section id="guidelines" class="py-5 bg-gradient-secondary">
+        <div class="container">
+            <h2 class="text-center title-shadow">User Guidelines</h2>
+            <ul class="list-unstyled guidelines-list">
+                <li class="guideline-item"><i class="fas fa-check-circle"></i> Only registered members of IIT Ropar can participate.</li>
+                <li class="guideline-item"><i class="fas fa-check-circle"></i> All listings must comply with institute policies and legal regulations.</li>
+                <li class="guideline-item"><i class="fas fa-check-circle"></i> Prohibited items include weapons, illicit substances, and any unauthorized goods.</li>
+                <li class="guideline-item"><i class="fas fa-check-circle"></i> Users are expected to engage respectfully and uphold community standards.</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="py-5 bg-gradient-dark">
+        <div class="container">
+            <h2 class="text-center title-shadow">Contact Us</h2>
+            <p class="text-center content-text">For support or inquiries, please reach out to our team at <a href="mailto:support@iitrpr.ac.in" class="contact-link">support@iitrpr.ac.in</a></p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer bg-dark text-white py-3">
+        <div class="container text-center">
+            <p>&copy; 2025 IIT Ropar Marketplace. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>

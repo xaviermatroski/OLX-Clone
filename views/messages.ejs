@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messages - IIT Ropar Marketplace</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <!-- Bootstrap CSS for responsive design -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <a class="navbar-brand" href="#">
+            <img src="/images/iitropar_logo.jpg" alt="IIT Ropar Logo" height="50">
+            IIT Ropar Marketplace
+        </a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="/user/<%= user_name %>">
+                        <i class="fas fa-home"></i> Home</a>
+                </li>
+                <!-- <li class="nav-item">
+                    <a class="nav-link" href="/cart">
+                        <i class="fas fa-shopping-cart"></i> Cart
+                    </a>
+                </li> -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="fas fa-user"></i> Profile
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
+                        <a class="dropdown-item" href="/profile">View Profile</a>
+                        <a class="dropdown-item" href="/orders">My Orders</a>
+                        <div class="dropdown-divider"></div>
+                        <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
+                        <a class="dropdown-item" href="#" onclick="document.getElementById('logout-form').submit();">Logout</a>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container mt-4 mb-4">
+        <div class="row">
+            <!-- Chat list -->
+            <div class="col-md-4 chat-list">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Conversations</h5>
+                    </div>
+                    <div class="list-group list-group-flush">
+                        <% conversations.forEach(function(conv) { %>
+                            <a href="/messages?conversation=<%= conv._id %>" 
+                               class="list-group-item list-group-item-action <%= currentConversation && currentConversation._id.toString() === conv._id.toString() ? 'active' : '' %>">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1"><%= conv.product.name %></h6>
+                                        <small>with <%= conv.seller === user_name ? conv.buyer : conv.seller %></small>
+                                    </div>
+                                    <% if (conv.unreadCount > 0) { %>
+                                        <span class="badge badge-primary badge-pill"><%= conv.unreadCount %></span>
+                                    <% } %>
+                                </div>
+                            </a>
+                        <% }); %>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat messages -->
+            <div class="col-md-8">
+                <div class="card chat-box">
+                    <div class="card-header">
+                        <% if (currentConversation) { %>
+                            <h5 class="mb-0">
+                                <%= currentConversation.product.name %> - 
+                                Chat with <%= currentConversation.seller === user_name ? currentConversation.buyer : currentConversation.seller %>
+                            </h5>
+                        <% } else { %>
+                            <h5 class="mb-0">Select a conversation to start chatting</h5>
+                        <% } %>
+                    </div>
+                    <div class="card-body chat-messages" id="chatMessages">
+                        <% if (currentConversation && messages) { %>
+                            <% messages.forEach(function(message) { %>
+                                <div class="message <%= message.sender === user_name ? 'message-sent' : 'message-received' %>">
+                                    <div class="message-content">
+                                        <p><%= message.content %></p>
+                                        <small class="message-time">
+                                            <%= message.createdAt.toLocaleString() %>
+                                        </small>
+                                    </div>
+                                </div>
+                            <% }); %>
+                        <% } %>
+                    </div>
+                    <% if (currentConversation) { %>
+                        <div class="card-footer">
+                            <form id="messageForm" class="message-form">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="messageInput" placeholder="Type your message...">
+                                    <div class="input-group-append">
+                                        <button class="btn custom-btn login-btn" type="submit">
+                                            <i class="fas fa-paper-plane"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer bg-dark text-white py-3">
+        <div class="container text-center">
+            <p>&copy; 2025 IIT Ropar Marketplace. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const chatMessages = document.getElementById('chatMessages');
+        const messageForm = document.getElementById('messageForm');
+        const messageInput = document.getElementById('messageInput');
+        const conversationId = '<%= currentConversation ? currentConversation._id : "" %>';
+
+        // Clear unread messages when opening conversation
+        if (conversationId) {
+            let unreadMessages = JSON.parse(localStorage.getItem('unreadMessages') || '[]');
+            unreadMessages = unreadMessages.filter(id => id !== conversationId);
+            localStorage.setItem('unreadMessages', JSON.stringify(unreadMessages));
+            
+            // Remove notification dot if no more unread messages
+            if (unreadMessages.length === 0) {
+                localStorage.removeItem('unreadMessages');
+                window.opener && window.opener.document.querySelector('.notification-dot')?.classList.add('d-none');
+            }
+        }
+
+        // Scroll to bottom of chat
+        function scrollToBottom() {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Initially scroll to bottom
+        scrollToBottom();
+
+        if (messageForm) {
+            messageForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const message = messageInput.value.trim();
+                if (message) {
+                    socket.emit('chatMessage', {
+                        conversationId,
+                        message,
+                        sender: '<%= user_name %>'
+                    });
+                    messageInput.value = '';
+                }
+            });
+        }
+
+        // Listen for messages
+        socket.on('message', (message) => {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${message.sender === '<%= user_name %>' ? 'message-sent' : 'message-received'}`;
+            messageDiv.innerHTML = `
+                <div class="message-content">
+                    <p>${message.content}</p>
+                    <small class="message-time">${new Date().toLocaleString()}</small>
+                </div>
+            `;
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+        });
+    </script>
+</body>
+</html>
