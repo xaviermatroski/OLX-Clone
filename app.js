@@ -517,6 +517,45 @@ app.get('/messages', isAuthenticated, async (req, res) => {
     }
 });
 
+// Orders page - show user's products
+app.get("/orders", isAuthenticated, async (req, res) => {
+    const user_name = req.session.userEmail ? (await User.findOne({ user_mail: req.session.userEmail })).user_name : '';
+    
+    try {
+        const userProducts = await Product.find({ user_name: user_name });
+        res.render("orders", { user_name, userProducts });
+    } catch (err) {
+        console.error("Error finding user products:", err);
+        res.status(500).send("Server error.");
+    }
+});
+
+// Update product details
+app.post("/orders/update/:productId", isAuthenticated, async (req, res) => {
+    const { productId } = req.params;
+    const { name, description, price } = req.body;
+    const user_name = req.session.userEmail ? (await User.findOne({ user_mail: req.session.userEmail })).user_name : '';
+
+    try {
+        const product = await Product.findById(productId);
+        
+        if (!product || product.user_name !== user_name) {
+            return res.status(403).send("Unauthorized");
+        }
+
+        await Product.findByIdAndUpdate(productId, {
+            name,
+            description,
+            price
+        });
+
+        res.redirect("/orders");
+    } catch (err) {
+        console.error("Error updating product:", err);
+        res.status(500).send("Server error.");
+    }
+});
+
 // Port opening
 server.listen(3000, function() {
     console.log("Server started on port 3000");

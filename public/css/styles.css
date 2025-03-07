@@ -969,3 +969,22 @@ section:nth-child(even) {
 section:nth-child(odd) {
     background-color: #ffffff;
 }
+
+/* Orders Page Styling */
+.edit-form input,
+.edit-form textarea {
+    background-color: transparent;
+    transition: background-color 0.3s ease;
+}
+
+.edit-form input:not([readonly]),
+.edit-form textarea:not([readonly]) {
+    background-color: #fff;
+    border-color: #4a90e2;
+}
+
+.form-buttons {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.5rem;
+}
