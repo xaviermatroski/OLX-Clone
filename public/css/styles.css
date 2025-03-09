@@ -988,3 +988,50 @@ section:nth-child(odd) {
     display: flex;
     gap: 0.5rem;
 }
+
+/* Terms Modal Styling */
+.terms-modal .modal-body {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.terms-modal .modal-body h6 {
+    color: #2c3e50;
+    font-weight: 600;
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.terms-modal .modal-body p {
+    color: #505050;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: 1.2rem;
+}
+
+.terms-modal .modal-title {
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+/* Quick Messages Styling */
+.quick-messages {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
+}
+
+.quick-messages .btn-outline-secondary {
+    font-size: 0.85rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    transition: all 0.2s ease;
+}
+
+.quick-messages .btn-outline-secondary:hover {
+    background-color: #4a90e2;
+    border-color: #4a90e2;
+    color: white;
+}

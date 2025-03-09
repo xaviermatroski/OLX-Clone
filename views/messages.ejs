@@ -103,9 +103,22 @@
                     </div>
                     <% if (currentConversation) { %>
                         <div class="card-footer">
-                            <form id="messageForm" class="message-form">
+                            <!-- Add Quick Message Suggestions -->
+                            <div class="quick-messages mb-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary mr-2 mb-2" onclick="sendQuickMessage('Is this still available?')">Is this still available?</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary mr-2 mb-2" onclick="sendQuickMessage('What is your best price?')">What is your best price?</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary mr-2 mb-2" onclick="sendQuickMessage('Where can we meet?')">Where can we meet?</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary mr-2 mb-2" onclick="sendQuickMessage('Can you share more pictures?')">Can you share more pictures?</button>
+                            </div>
+                            <form id="messageForm" class="message-form" autocomplete="off">
                                 <div class="input-group">
-                                    <input type="text" class="form-control" id="messageInput" placeholder="Type your message...">
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="messageInput" 
+                                           placeholder="Type your message..."
+                                           autocomplete="off"
+                                           autocapitalize="on"
+                                           spellcheck="true">
                                     <div class="input-group-append">
                                         <button class="btn custom-btn login-btn" type="submit">
                                             <i class="fas fa-paper-plane"></i>
@@ -188,6 +201,17 @@
             chatMessages.appendChild(messageDiv);
             scrollToBottom();
         });
+
+        // Add Quick Message Function
+        function sendQuickMessage(text) {
+            if (conversationId) {
+                socket.emit('chatMessage', {
+                    conversationId,
+                    message: text,
+                    sender: '<%= user_name %>'
+                });
+            }
+        }
     </script>
 </body>
 </html>

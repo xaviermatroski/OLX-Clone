@@ -40,7 +40,8 @@ const userSchema = {
     password: String, // Add password field
     bio: String, // Add bio field
     contact_no: String, // Add contact number field
-    address: String // Add address field
+    address: String, // Add address field
+    role: { type: String, default: 'user' }  // Add role field
 }
 
 const User = mongoose.model("User", userSchema)
@@ -51,7 +52,8 @@ const productSchema = {
     description: String,
     images: [String], // Changed from single image to array of images
     price: Number,
-    user_name: String
+    user_name: String,
+    is_donation: { type: Boolean, default: false }
 };
 
 const Product = mongoose.model("Product", productSchema)
@@ -194,8 +196,11 @@ app.post("/login", async (req, res) => {
         if (user && await bcrypt.compare(password, user.password)) {
             req.session.isAuthenticated = true;
             req.session.userEmail = email;
-            req.session.userRole = "user";
-            return res.redirect(`/user/${user.user_name}`);
+            req.session.userRole = user.role;  // Set the actual user role from database
+            
+            // Redirect based on role
+            const redirectPath = user.role === "volunteer" ? "/volunteer/" : "/user/";
+            return res.redirect(`${redirectPath}${user.user_name}`);
         } else if (admin && await bcrypt.compare(password, admin.password)) {
             req.session.isAuthenticated = true;
             req.session.userEmail = email;
@@ -223,7 +228,6 @@ app.post("/verify-otp", async (req, res) => {
         const { name, password, role } = req.session.registrationDetails;
 
         try {
-            // Create user or admin based on role after OTP verification
             if (role === "admin") {
                 const newAdmin = new Admin({
                     admin_name: name,
@@ -231,38 +235,31 @@ app.post("/verify-otp", async (req, res) => {
                     password: password
                 });
                 await newAdmin.save();
-                
-                // Set session variables
                 req.session.isAuthenticated = true;
                 req.session.userEmail = email;
                 req.session.userRole = "admin";
-                
-                // Clear registration and OTP data
-                req.session.registrationDetails = null;
-                req.session.otp = null;
-                
                 return res.redirect(`/admin/${newAdmin.admin_name}`);
-            } else if (role === "user") {
+            } else if (role === "user" || role === "volunteer") {  // Handle both user and volunteer roles
                 const newUser = new User({
                     user_name: name,
                     user_mail: email,
-                    password: password
+                    password: password,
+                    role: role  // Store the role in user document
                 });
                 await newUser.save();
-                
-                // Set session variables
                 req.session.isAuthenticated = true;
                 req.session.userEmail = email;
-                req.session.userRole = "user";
+                req.session.userRole = role;
                 
-                // Clear registration and OTP data
-                req.session.registrationDetails = null;
-                req.session.otp = null;
-                
-                return res.redirect(`/user/${newUser.user_name}`);
-            } else {
-                return res.status(400).send("Invalid role");
+                // Redirect based on role
+                const redirectPath = role === "volunteer" ? "/volunteer/" : "/user/";
+                return res.redirect(redirectPath + newUser.user_name);
             }
+            
+            // Clear registration and OTP data
+            req.session.registrationDetails = null;
+            req.session.otp = null;
+            
         } catch (err) {
             console.error("Error creating user:", err);
             return res.status(500).send("Server error during user creation");
@@ -344,17 +341,19 @@ app.post("/user/:user/sell", isAuthenticated, isAuthorized("user"), upload.array
 app.get("/user/:user_name", isAuthenticated, isAuthorized("user"), async (req, res) => {
     const user_name = req.params.user_name;
     
-    // Ensure that the logged-in user matches the requested user
     if (req.session.userEmail) {
         try {
-            // Find the user in the MongoDB collection
             const user = await User.findOne({ user_name: user_name, user_mail: req.session.userEmail });
             if (user) {
-                // Render the user's page
-                const products = await Product.find({ user_name: { $ne: user_name } });
+                // Show all products except user's own products and donations
+                const products = await Product.find({
+                    $and: [
+                        { user_name: { $ne: user_name }},  // Not user's own products
+                        { is_donation: { $ne: true }}      // Not donations
+                    ]
+                });
                 res.render("user", { products: products, user_name: user_name });
             } else {
-                // Handle the case where the user is not found or does not match the logged-in user
                 res.status(403).send("Access denied. Unauthorized access.");
             }
         } catch (err) {
@@ -381,7 +380,7 @@ app.get("/product/:id", isAuthenticated, async (req, res) => {
 });
 
 // Profile page
-app.get("/profile/:user_name", isAuthenticated, isAuthorized("user"), async (req, res) => {
+app.get("/profile/:user_name", isAuthenticated, async (req, res) => {
     const user_name = req.params.user_name;
 
     try {
@@ -397,8 +396,8 @@ app.get("/profile/:user_name", isAuthenticated, isAuthorized("user"), async (req
     }
 });
 
-// Handle profile update
-app.post("/profile/:user_name", isAuthenticated, isAuthorized("user"), async (req, res) => {
+// Handle profile update - modify to handle both roles
+app.post("/profile/:user_name", isAuthenticated, async (req, res) => {
     const user_name = req.params.user_name;
     const { bio, contact_no, email, address } = req.body;
 
@@ -409,6 +408,8 @@ app.post("/profile/:user_name", isAuthenticated, isAuthorized("user"), async (re
             { new: true }
         );
         if (user) {
+            // Redirect based on user role
+            const redirectPath = user.role === "volunteer" ? "/volunteer/" : "/user/";
             res.redirect(`/profile/${user_name}`);
         } else {
             res.status(403).send("Access denied. Unauthorized access.");
@@ -427,13 +428,14 @@ app.get("/search", isAuthenticated, async (req, res) => {
     try {
         let products = [];
         if (query) {
-            // Search in product name and description using case-insensitive regex
+            // Search in product name and description for non-donation items
             products = await Product.find({
                 $or: [
                     { name: { $regex: query, $options: 'i' } },
                     { description: { $regex: query, $options: 'i' } }
                 ],
-                user_name: { $ne: user_name } // Exclude user's own products
+                user_name: { $ne: user_name }, // Exclude user's own products
+                is_donation: false // Exclude donations
             });
         }
         res.render("user", { products: products, user_name: user_name });
@@ -552,6 +554,122 @@ app.post("/orders/update/:productId", isAuthenticated, async (req, res) => {
         res.redirect("/orders");
     } catch (err) {
         console.error("Error updating product:", err);
+        res.status(500).send("Server error.");
+    }
+});
+
+// Volunteer search route - MOVE THIS SECTION UP
+app.get("/volunteer/search", isAuthenticated, isAuthorized("volunteer"), async (req, res) => {
+    const query = req.query.query;
+    const user_name = req.session.userEmail ? (await User.findOne({ user_mail: req.session.userEmail })).user_name : '';
+
+    try {
+        let donations = [];
+        if (query) {
+            donations = await Product.find({
+                $or: [
+                    { name: { $regex: query, $options: 'i' } },
+                    { description: { $regex: query, $options: 'i' } }
+                ],
+                is_donation: true
+            });
+        } else {
+            donations = await Product.find({ is_donation: true });
+        }
+        res.render("volunteer", { donations: donations, user_name: user_name });
+    } catch (err) {
+        console.error("Search error:", err);
+        res.status(500).send("Error performing search");
+    }
+});
+
+// Volunteer page route - KEEP THIS AFTER THE SEARCH ROUTE
+app.get("/volunteer/:user_name", isAuthenticated, isAuthorized("volunteer"), async (req, res) => {
+    const user_name = req.params.user_name;
+    
+    if (req.session.userEmail) {
+        try {
+            const user = await User.findOne({ user_name: user_name, user_mail: req.session.userEmail });
+            if (user) {
+                const donations = await Product.find({ is_donation: true });
+                res.render("volunteer", { donations: donations, user_name: user_name });
+            } else {
+                res.status(403).send("Access denied. Unauthorized access.");
+            }
+        } catch (err) {
+            console.error("Error finding donations:", err);
+            res.status(500).send("Server error.");
+        }
+    } else {
+        res.status(403).send("Access denied. Please log in.");
+    }
+});
+
+// Volunteer donate page
+app.get("/volunteer/:user/donate", isAuthenticated, isAuthorized("volunteer"), (req, res) => {
+    const user_name = req.params.user;
+    res.render("donate", { user_name: user_name });
+});
+
+// Handle donation submission
+app.post("/volunteer/:user/donate", isAuthenticated, isAuthorized("volunteer"), upload.array("image", 5), async (req, res) => {
+    const user_name = req.params.user;
+    const { name, description } = req.body;
+    
+    const images = req.files.map(file => "/images/" + file.filename);
+
+    const newDonation = new Product({
+        name,
+        description,
+        images,
+        price: 0,
+        user_name,
+        is_donation: true
+    });
+
+    try {
+        await newDonation.save();
+        res.redirect(`/volunteer/${user_name}`);
+    } catch (err) {
+        console.log(err);
+        res.status(500).send("An unexpected error occurred.");
+    }
+});
+
+// Donations page - show user's donations
+app.get("/donations", isAuthenticated, isAuthorized("volunteer"), async (req, res) => {
+    const user_name = req.session.userEmail ? (await User.findOne({ user_mail: req.session.userEmail })).user_name : '';
+    
+    try {
+        const userDonations = await Product.find({ user_name: user_name, is_donation: true });
+        res.render("donations", { user_name, userDonations });
+    } catch (err) {
+        console.error("Error finding user donations:", err);
+        res.status(500).send("Server error.");
+    }
+});
+
+// Update donation details
+app.post("/donations/update/:donationId", isAuthenticated, isAuthorized("volunteer"), async (req, res) => {
+    const { donationId } = req.params;
+    const { name, description } = req.body;
+    const user_name = req.session.userEmail ? (await User.findOne({ user_mail: req.session.userEmail })).user_name : '';
+
+    try {
+        const donation = await Product.findById(donationId);
+        
+        if (!donation || donation.user_name !== user_name) {
+            return res.status(403).send("Unauthorized");
+        }
+
+        await Product.findByIdAndUpdate(donationId, {
+            name,
+            description
+        });
+
+        res.redirect("/donations");
+    } catch (err) {
+        console.error("Error updating donation:", err);
         res.status(500).send("Server error.");
     }
 });

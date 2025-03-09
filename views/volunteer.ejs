@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volunteer Portal - IIT Ropar Marketplace</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <a class="navbar-brand" href="/volunteer/<%= user_name %>">
+            <img src="/images/iitropar_logo.jpg" alt="IIT Ropar Logo" height="50">
+            IIT Ropar Volunteer Portal
+        </a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <form class="form-inline my-2 my-lg-0" action="/volunteer/search" method="GET">
+                        <div class="input-group">
+                            <input class="form-control" type="search" name="query" placeholder="Search donations..." aria-label="Search">
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-light" type="submit">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/volunteer/<%= user_name %>/donate">
+                        <i class="fas fa-hand-holding-heart"></i> Donate
+                    </a>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" data-toggle="dropdown">
+                        <i class="fas fa-user"></i> Profile
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right">
+                        <a class="dropdown-item" href="/profile/<%= user_name %>">View Profile</a>
+                        <a class="dropdown-item" href="/donations">My Donations</a>
+                        <div class="dropdown-divider"></div>
+                        <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
+                        <a class="dropdown-item" href="#" onclick="document.getElementById('logout-form').submit();">Logout</a>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <section id="donations" class="py-5">
+        <div class="container">
+            <h2 class="text-center mb-4 font-weight-bold">Available Donations</h2>
+            <div class="row">
+                <% donations.forEach(function(donation) { %>
+                <div class="col-md-4">
+                    <div class="card mb-4 shadow-sm">
+                        <div class="product-image-wrapper">
+                            <div class="product-image-container card-img-container">
+                                <img src="<%= donation.images ? donation.images[0] : '' %>" alt="Donation Image">
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <h5 class="card-title font-weight-bold"><%= donation.name %></h5>
+                            <p class="card-text text-muted"><%= donation.description %></p>
+                            <p class="text-info mb-0">
+                                <small><i class="fas fa-user"></i> Donated by: <%= donation.user_name %></small>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <% }); %>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer bg-dark text-white py-3">
+        <div class="container text-center">
+            <p>&copy; 2025 IIT Ropar Marketplace. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
