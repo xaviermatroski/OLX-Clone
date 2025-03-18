@@ -52,31 +52,112 @@
         </div>
     </nav>
 
-    <section id="donations" class="py-5">
-        <div class="container">
-            <h2 class="text-center mb-4 font-weight-bold">Available Donations</h2>
-            <div class="row">
-                <% donations.forEach(function(donation) { %>
-                <div class="col-md-4">
-                    <div class="card mb-4 shadow-sm">
-                        <div class="product-image-wrapper">
-                            <div class="product-image-container card-img-container">
-                                <img src="<%= donation.images ? donation.images[0] : '' %>" alt="Donation Image">
+    <div class="container-fluid py-4">
+        <div class="row px-4"> <!-- Added padding to the row -->
+            <!-- Donations Section -->
+            <div class="col-md-9">
+                <div class="donations-container"> <!-- Added wrapper div -->
+                    <h2 class="text-center mb-4 font-weight-bold">Available Donations</h2>
+                    <div class="row justify-content-start"> <!-- Added justify-content-start -->
+                        <% donations.forEach(function(donation) { %>
+                            <div class="col-md-4 mb-4">
+                                <div class="card mb-4 shadow-sm">
+                                    <div class="product-image-wrapper">
+                                        <div class="product-image-container card-img-container">
+                                            <img src="<%= donation.images ? donation.images[0] : '' %>" alt="Donation Image">
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <h5 class="card-title font-weight-bold"><%= donation.name %></h5>
+                                        <p class="card-text text-muted"><%= donation.description %></p>
+                                        <p class="text-info mb-0">
+                                            <small><i class="fas fa-user"></i> Donated by: <%= donation.user_name %></small>
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                        <div class="card-body">
-                            <h5 class="card-title font-weight-bold"><%= donation.name %></h5>
-                            <p class="card-text text-muted"><%= donation.description %></p>
-                            <p class="text-info mb-0">
-                                <small><i class="fas fa-user"></i> Donated by: <%= donation.user_name %></small>
-                            </p>
+                        <% }); %>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leaderboard Section - Now on right -->
+            <div class="col-md-3">
+                <div class="card shadow-sm mb-4 leaderboard-card">  <!-- Added leaderboard-card class -->
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0 text-center">
+                            <i class="fas fa-trophy text-warning"></i> Top Donors
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="bg-light">
+                                    <tr>
+                                        <th class="text-center">#</th>
+                                        <th>Volunteer</th>
+                                        <th class="text-center">Count</th>
+                                        <th class="text-center">Badge</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% donations.reduce((donors, donation) => {
+                                        const donor = donors.find(d => d.name === donation.user_name);
+                                        if (donor) donor.count++;
+                                        else donors.push({ name: donation.user_name, count: 1 });
+                                        return donors;
+                                    }, [])
+                                    .sort((a, b) => b.count - a.count)
+                                    .slice(0, 5)
+                                    .forEach((donor, index) => { %>
+                                        <tr>
+                                            <td class="text-center"><%= index + 1 %></td>
+                                            <td><%= donor.name %></td>
+                                            <td class="text-center"><%= donor.count %></td>
+                                            <td class="text-center">
+                                                <% if (donor.count >= 10) { %>
+                                                    <i class="fas fa-medal text-warning" title="Gold Donor"></i>
+                                                <% } else if (donor.count >= 5) { %>
+                                                    <i class="fas fa-medal text-secondary" title="Silver Donor"></i>
+                                                <% } else if (donor.count >= 3) { %>
+                                                    <i class="fas fa-medal text-bronze" title="Bronze Donor"></i>
+                                                <% } %>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
-                <% }); %>
             </div>
         </div>
-    </section>
+    </div>
+
+    <!-- Add styles for leaderboard -->
+    <style>
+        .text-bronze {
+            color: #cd7f32;
+        }
+        .leaderboard-card {
+            transform: none !important;  /* Prevent hover transform */
+            transition: none !important;  /* Remove transition effects */
+        }
+        .leaderboard-card:hover {
+            transform: none !important;  /* Ensure no transform on hover */
+            box-shadow: 0 .5rem 1rem rgba(0,0,0,.15) !important;  /* Keep consistent shadow */
+        }
+        .donations-container {
+            padding: 0 15px;  /* Add padding to the donations container */
+        }
+
+        @media (min-width: 992px) {
+            .container-fluid {
+                padding-left: 30px;
+                padding-right: 30px;
+            }
+        }
+    </style>
 
     <footer class="footer bg-dark text-white py-3">
         <div class="container text-center">
