@@ -35,8 +35,17 @@
                     <select id="role" name="role" class="form-control" required>
                         <option value="">-- Select Role --</option>
                         <option value="user">User</option>
+                        <option value="volunteer">Volunteer</option>
                         <option value="admin">Admin</option>
                     </select>
+                </div>
+                <div class="form-group">
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input" id="termsCheck" required>
+                        <label class="custom-control-label" for="termsCheck">
+                            I agree to the <a href="#" data-toggle="modal" data-target="#termsModal">Terms and Conditions</a>
+                        </label>
+                    </div>
                 </div>
                 <button type="submit" class="btn custom-btn action-btn w-100 mb-4">Register</button>
                 <div class="auth-footer">
@@ -48,6 +57,52 @@
             </form>
         </div>
     </div>
+    <!-- Terms and Conditions Modal -->
+    <div class="modal fade terms-modal" id="termsModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Terms and Conditions</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <h6>1. Platform Overview</h6>
+                    <p>IIT Ropar Marketplace is an exclusive platform for IIT Ropar community members to buy, sell, and exchange items within the campus community.</p>
+
+                    <h6>2. User Eligibility</h6>
+                    <p>Only current students, faculty, and staff of IIT Ropar can register and use this platform. Users must register with their official IIT Ropar email addresses.</p>
+
+                    <h6>3. User Responsibilities</h6>
+                    <p>Users are responsible for maintaining accurate product listings, responding to inquiries promptly, and engaging in respectful communication with other users.</p>
+
+                    <h6>4. Prohibited Items</h6>
+                    <p>The following items are strictly prohibited:
+                       • Illegal goods and substances
+                       • Weapons and dangerous materials
+                       • Academic materials violating copyright
+                       • Counterfeit products
+                       • Any items violating institute policies</p>
+
+                    <h6>5. Transaction Safety</h6>
+                    <p>Users are advised to meet in public campus locations for exchanges and verify items before completing transactions. The platform is not responsible for any physical exchanges or payments.</p>
+
+                    <h6>6. Account Security</h6>
+                    <p>Users must maintain the security of their accounts and immediately report any unauthorized access or suspicious activity.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    
     <script>
         function togglePasswordVisibility(id) {
             const passwordField = document.getElementById(id);

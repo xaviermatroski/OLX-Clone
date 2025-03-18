@@ -44,7 +44,10 @@
         <div class="container text-center text-white">
             <h1>Welcome to the IIT Ropar Marketplace</h1>
             <p>Buy, Sell, and Exchange within the IIT Ropar Community</p>
-            <a href="<%= isAuthenticated ? '/user/' + user_name : '/login' %>" class="btn btn-lg custom-btn action-btn">Buy & Sell</a>
+            <div class="btn-group">
+                <a href="<%= isAuthenticated ? '/user/' + user_name : '/login' %>" class="btn btn-lg custom-btn action-btn mr-3">Buy & Sell</a>
+                <a href="<%= isAuthenticated ? '/volunteer/' + user_name : '/login' %>" class="btn btn-lg custom-btn action-btn">Volunteer</a>
+            </div>
         </div>
     </header>
 

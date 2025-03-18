@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volunteer Portal - IIT Ropar Marketplace</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <a class="navbar-brand" href="/volunteer/<%= user_name %>">
+            <img src="/images/iitropar_logo.jpg" alt="IIT Ropar Logo" height="50">
+            IIT Ropar Volunteer Portal
+        </a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <form class="form-inline my-2 my-lg-0" action="/volunteer/search" method="GET">
+                        <div class="input-group">
+                            <input class="form-control" type="search" name="query" placeholder="Search donations..." aria-label="Search">
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-light" type="submit">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/volunteer/<%= user_name %>/donate">
+                        <i class="fas fa-hand-holding-heart"></i> Donate
+                    </a>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" data-toggle="dropdown">
+                        <i class="fas fa-user"></i> Profile
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right">
+                        <a class="dropdown-item" href="/profile/<%= user_name %>">View Profile</a>
+                        <a class="dropdown-item" href="/donations">My Donations</a>
+                        <div class="dropdown-divider"></div>
+                        <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
+                        <a class="dropdown-item" href="#" onclick="document.getElementById('logout-form').submit();">Logout</a>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <div class="row px-4"> <!-- Added padding to the row -->
+            <!-- Donations Section -->
+            <div class="col-md-9">
+                <div class="donations-container"> <!-- Added wrapper div -->
+                    <h2 class="text-center mb-4 font-weight-bold">Available Donations</h2>
+                    <div class="row justify-content-start"> <!-- Added justify-content-start -->
+                        <% donations.forEach(function(donation) { %>
+                            <div class="col-md-4 mb-4">
+                                <div class="card mb-4 shadow-sm">
+                                    <div class="product-image-wrapper">
+                                        <div class="product-image-container card-img-container">
+                                            <img src="<%= donation.images ? donation.images[0] : '' %>" alt="Donation Image">
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <h5 class="card-title font-weight-bold"><%= donation.name %></h5>
+                                        <p class="card-text text-muted"><%= donation.description %></p>
+                                        <p class="text-info mb-0">
+                                            <small><i class="fas fa-user"></i> Donated by: <%= donation.user_name %></small>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        <% }); %>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leaderboard Section - Now on right -->
+            <div class="col-md-3">
+                <div class="card shadow-sm mb-4 leaderboard-card">  <!-- Added leaderboard-card class -->
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0 text-center">
+                            <i class="fas fa-trophy text-warning"></i> Top Donors
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="bg-light">
+                                    <tr>
+                                        <th class="text-center">#</th>
+                                        <th>Volunteer</th>
+                                        <th class="text-center">Count</th>
+                                        <th class="text-center">Badge</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% donations.reduce((donors, donation) => {
+                                        const donor = donors.find(d => d.name === donation.user_name);
+                                        if (donor) donor.count++;
+                                        else donors.push({ name: donation.user_name, count: 1 });
+                                        return donors;
+                                    }, [])
+                                    .sort((a, b) => b.count - a.count)
+                                    .slice(0, 5)
+                                    .forEach((donor, index) => { %>
+                                        <tr>
+                                            <td class="text-center"><%= index + 1 %></td>
+                                            <td><%= donor.name %></td>
+                                            <td class="text-center"><%= donor.count %></td>
+                                            <td class="text-center">
+                                                <% if (donor.count >= 10) { %>
+                                                    <i class="fas fa-medal text-warning" title="Gold Donor"></i>
+                                                <% } else if (donor.count >= 5) { %>
+                                                    <i class="fas fa-medal text-secondary" title="Silver Donor"></i>
+                                                <% } else if (donor.count >= 3) { %>
+                                                    <i class="fas fa-medal text-bronze" title="Bronze Donor"></i>
+                                                <% } %>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add styles for leaderboard -->
+    <style>
+        .text-bronze {
+            color: #cd7f32;
+        }
+        .leaderboard-card {
+            transform: none !important;  /* Prevent hover transform */
+            transition: none !important;  /* Remove transition effects */
+        }
+        .leaderboard-card:hover {
+            transform: none !important;  /* Ensure no transform on hover */
+            box-shadow: 0 .5rem 1rem rgba(0,0,0,.15) !important;  /* Keep consistent shadow */
+        }
+        .donations-container {
+            padding: 0 15px;  /* Add padding to the donations container */
+        }
+
+        @media (min-width: 992px) {
+            .container-fluid {
+                padding-left: 30px;
+                padding-right: 30px;
+            }
+        }
+    </style>
+
+    <footer class="footer bg-dark text-white py-3">
+        <div class="container text-center">
+            <p>&copy; 2025 IIT Ropar Marketplace. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
