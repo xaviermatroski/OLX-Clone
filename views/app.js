@@ -87,11 +87,12 @@ const conversationSchema = {
 const Message = mongoose.model("Message", messageSchema);
 const Conversation = mongoose.model("Conversation", conversationSchema);
 
-// Update Report Schema
+// Add new Report Schema after other schemas
 const reportSchema = {
     reportedUser: String,
     reportedBy: String,
     reason: String,
+    conversationId: String,  // Add this field
     createdAt: {
         type: Date,
         default: Date.now
@@ -859,16 +860,17 @@ app.post("/admin/dismiss-report/:reportId", isAuthenticated, isAuthorized("admin
     }
 });
 
-// Update report-user endpoint to remove conversation ID
+// Add report user
 app.post("/report-user", isAuthenticated, async (req, res) => {
-    const { reportedUser, reason } = req.body;
+    const { reportedUser, reason, conversationId } = req.body;
     const reportedBy = req.session.userEmail ? (await User.findOne({ user_mail: req.session.userEmail })).user_name : '';
 
     try {
         const report = new Report({
             reportedUser,
             reportedBy,
-            reason
+            reason,
+            conversationId
         });
         await report.save();
         res.json({ message: "User reported successfully" });
@@ -878,8 +880,45 @@ app.post("/report-user", isAuthenticated, async (req, res) => {
     }
 });
 
-// Remove the chat viewing route
-// Delete or comment out the /admin/report/:reportId/chat route
+// Add new route to get reported conversation messages
+app.get("/admin/report/:reportId/chat", isAuthenticated, isAuthorized("admin"), async (req, res) => {
+    try {
+        const report = await Report.findById(req.params.reportId);
+        if (!report) {
+            return res.status(404).json({ error: "Report not found" });
+        }
+
+        // Handle case where conversation ID might not exist
+        if (!report.conversationId) {
+            return res.json({ 
+                messages: [],
+                conversation: null,
+                error: "No chat history available for this report"
+            });
+        }
+
+        const conversation = await Conversation.findById(report.conversationId).populate('product');
+        if (!conversation) {
+            return res.json({
+                messages: [],
+                conversation: null,
+                error: "Chat conversation no longer exists"
+            });
+        }
+
+        const messages = await Message.find({ conversationId: report.conversationId })
+            .sort({ createdAt: 1 });
+
+        res.json({
+            messages,
+            conversation,
+            success: true
+        });
+    } catch (err) {
+        console.error("Error fetching reported chat:", err);
+        res.status(500).json({ error: "Error loading chat messages" });
+    }
+});
 
 // Port opening
 server.listen(3000, function() {
