@@ -50,7 +50,11 @@ const User = mongoose.model("User", userSchema)
 const productSchema = {
     name: String,
     description: String,
-    images: [String], // Changed from single image to array of images
+    images: [{
+        data: Buffer,
+        contentType: String,
+        filename: String
+    }],
     price: Number,
     user_name: String,
     is_donation: { type: Boolean, default: false }
@@ -295,16 +299,12 @@ app.get("/", async (req, res) => {
 // Admin page
 
 // Set up multer for file uploads
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, "public/images");
-    },
-    filename: function (req, file, cb) {
-        cb(null, Date.now() + path.extname(file.originalname));
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
     }
 });
-
-const upload = multer({ storage: storage });
 
 // Sell page
 app.get("/user/:user/sell", isAuthenticated, isAuthorized("user"), (req, res) => {
@@ -317,13 +317,17 @@ app.post("/user/:user/sell", isAuthenticated, isAuthorized("user"), upload.array
     const user_name = req.params.user;
     const { name, description, price } = req.body;
     
-    // Process multiple images
-    const images = req.files.map(file => "/images/" + file.filename);
+    // Process images to store in MongoDB
+    const images = await Promise.all(req.files.map(async (file) => ({
+        data: file.buffer,
+        contentType: file.mimetype,
+        filename: file.originalname
+    })));
 
     const newProduct = new Product({
         name,
         description,
-        images, // Store array of image paths
+        images,
         price,
         user_name
     });
@@ -558,6 +562,26 @@ app.post("/orders/update/:productId", isAuthenticated, async (req, res) => {
     }
 });
 
+// Delete product route
+app.post("/orders/delete/:productId", isAuthenticated, async (req, res) => {
+    const { productId } = req.params;
+    const user_name = req.session.userEmail ? (await User.findOne({ user_mail: req.session.userEmail })).user_name : '';
+
+    try {
+        const product = await Product.findById(productId);
+        
+        if (!product || product.user_name !== user_name) {
+            return res.status(403).send("Unauthorized");
+        }
+
+        await Product.findByIdAndDelete(productId);
+        res.redirect("/orders");
+    } catch (err) {
+        console.error("Error deleting product:", err);
+        res.status(500).send("Server error.");
+    }
+});
+
 // Volunteer search route - MOVE THIS SECTION UP
 app.get("/volunteer/search", isAuthenticated, isAuthorized("volunteer"), async (req, res) => {
     const query = req.query.query;
@@ -616,7 +640,11 @@ app.post("/volunteer/:user/donate", isAuthenticated, isAuthorized("volunteer"), 
     const user_name = req.params.user;
     const { name, description } = req.body;
     
-    const images = req.files.map(file => "/images/" + file.filename);
+    const images = await Promise.all(req.files.map(async (file) => ({
+        data: file.buffer,
+        contentType: file.mimetype,
+        filename: file.originalname
+    })));
 
     const newDonation = new Product({
         name,
@@ -673,6 +701,44 @@ app.post("/donations/update/:donationId", isAuthenticated, isAuthorized("volunte
         res.status(500).send("Server error.");
     }
 });
+
+// Add route to serve images
+app.get('/image/:productId/:index', async (req, res) => {
+    try {
+        const product = await Product.findById(req.params.productId);
+        if (product && product.images[req.params.index]) {
+            const image = product.images[req.params.index];
+            res.set('Content-Type', image.contentType);
+            res.send(image.data);
+        } else {
+            res.status(404).send('Image not found');
+        }
+    } catch (err) {
+        res.status(500).send('Error retrieving image');
+    }
+});
+
+// // Update MongoDB migration route (temporary)
+// app.get("/update-products", async (req, res) => {
+//     try {
+//         // Update existing products to include is_donation field
+//         await Product.updateMany(
+//             { is_donation: { $exists: false } },
+//             { $set: { is_donation: false } }
+//         );
+        
+//         // Update existing users to include role field
+//         await User.updateMany(
+//             { role: { $exists: false } },
+//             { $set: { role: 'user' } }
+//         );
+        
+//         res.send("Database updated successfully");
+//     } catch (err) {
+//         console.error("Error updating database:", err);
+//         res.status(500).send("Error updating database");
+//     }
+// });
 
 // Port opening
 server.listen(3000, function() {
