@@ -55,11 +55,7 @@ const User = mongoose.model("User", userSchema)
 const productSchema = {
     name: String,
     description: String,
-    images: [{
-        data: Buffer,
-        contentType: String,
-        filename: String
-    }],
+    images: [String], // Changed from single image to array of images
     price: Number,
     user_name: String,
     is_donation: { type: Boolean, default: false }
@@ -91,11 +87,12 @@ const conversationSchema = {
 const Message = mongoose.model("Message", messageSchema);
 const Conversation = mongoose.model("Conversation", conversationSchema);
 
-// Update Report Schema
+// Add new Report Schema after other schemas
 const reportSchema = {
     reportedUser: String,
     reportedBy: String,
     reason: String,
+    conversationId: String,  // Add this field
     createdAt: {
         type: Date,
         default: Date.now
@@ -332,12 +329,16 @@ app.get("/", async (req, res) => {
 // Admin page
 
 // Set up multer for file uploads
-const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: {
-        fileSize: 5 * 1024 * 1024 // 5MB limit
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, "public/images");
+    },
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + path.extname(file.originalname));
     }
 });
+
+const upload = multer({ storage: storage });
 
 // Sell page
 app.get("/user/:user/sell", isAuthenticated, isAuthorized("user"), (req, res) => {
@@ -350,17 +351,13 @@ app.post("/user/:user/sell", isAuthenticated, isAuthorized("user"), upload.array
     const user_name = req.params.user;
     const { name, description, price } = req.body;
     
-    // Process images to store in MongoDB
-    const images = await Promise.all(req.files.map(async (file) => ({
-        data: file.buffer,
-        contentType: file.mimetype,
-        filename: file.originalname
-    })));
+    // Process multiple images
+    const images = req.files.map(file => "/images/" + file.filename);
 
     const newProduct = new Product({
         name,
         description,
-        images,
+        images, // Store array of image paths
         price,
         user_name
     });
@@ -637,26 +634,6 @@ app.post("/orders/update/:productId", isAuthenticated, async (req, res) => {
     }
 });
 
-// Delete product route
-app.post("/orders/delete/:productId", isAuthenticated, async (req, res) => {
-    const { productId } = req.params;
-    const user_name = req.session.userEmail ? (await User.findOne({ user_mail: req.session.userEmail })).user_name : '';
-
-    try {
-        const product = await Product.findById(productId);
-        
-        if (!product || product.user_name !== user_name) {
-            return res.status(403).send("Unauthorized");
-        }
-
-        await Product.findByIdAndDelete(productId);
-        res.redirect("/orders");
-    } catch (err) {
-        console.error("Error deleting product:", err);
-        res.status(500).send("Server error.");
-    }
-});
-
 // Volunteer search route - MOVE THIS SECTION UP
 app.get("/volunteer/search", isAuthenticated, isAuthorized("volunteer"), async (req, res) => {
     const query = req.query.query;
@@ -715,11 +692,7 @@ app.post("/volunteer/:user/donate", isAuthenticated, isAuthorized("volunteer"), 
     const user_name = req.params.user;
     const { name, description } = req.body;
     
-    const images = await Promise.all(req.files.map(async (file) => ({
-        data: file.buffer,
-        contentType: file.mimetype,
-        filename: file.originalname
-    })));
+    const images = req.files.map(file => "/images/" + file.filename);
 
     const newDonation = new Product({
         name,
@@ -776,44 +749,6 @@ app.post("/donations/update/:donationId", isAuthenticated, isAuthorized("volunte
         res.status(500).send("Server error.");
     }
 });
-
-// Add route to serve images
-app.get('/image/:productId/:index', async (req, res) => {
-    try {
-        const product = await Product.findById(req.params.productId);
-        if (product && product.images[req.params.index]) {
-            const image = product.images[req.params.index];
-            res.set('Content-Type', image.contentType);
-            res.send(image.data);
-        } else {
-            res.status(404).send('Image not found');
-        }
-    } catch (err) {
-        res.status(500).send('Error retrieving image');
-    }
-});
-
-// // Update MongoDB migration route (temporary)
-// app.get("/update-products", async (req, res) => {
-//     try {
-//         // Update existing products to include is_donation field
-//         await Product.updateMany(
-//             { is_donation: { $exists: false } },
-//             { $set: { is_donation: false } }
-//         );
-        
-//         // Update existing users to include role field
-//         await User.updateMany(
-//             { role: { $exists: false } },
-//             { $set: { role: 'user' } }
-//         );
-        
-//         res.send("Database updated successfully");
-//     } catch (err) {
-//         console.error("Error updating database:", err);
-//         res.status(500).send("Error updating database");
-//     }
-// });
 
 // Admin dashboard
 app.route("/admin/:admin_name")
@@ -925,16 +860,17 @@ app.post("/admin/dismiss-report/:reportId", isAuthenticated, isAuthorized("admin
     }
 });
 
-// Update report-user endpoint to remove conversation ID
+// Add report user
 app.post("/report-user", isAuthenticated, async (req, res) => {
-    const { reportedUser, reason } = req.body;
+    const { reportedUser, reason, conversationId } = req.body;
     const reportedBy = req.session.userEmail ? (await User.findOne({ user_mail: req.session.userEmail })).user_name : '';
 
     try {
         const report = new Report({
             reportedUser,
             reportedBy,
-            reason
+            reason,
+            conversationId
         });
         await report.save();
         res.json({ message: "User reported successfully" });
@@ -944,8 +880,45 @@ app.post("/report-user", isAuthenticated, async (req, res) => {
     }
 });
 
-// Remove the chat viewing route
-// Delete or comment out the /admin/report/:reportId/chat route
+// Add new route to get reported conversation messages
+app.get("/admin/report/:reportId/chat", isAuthenticated, isAuthorized("admin"), async (req, res) => {
+    try {
+        const report = await Report.findById(req.params.reportId);
+        if (!report) {
+            return res.status(404).json({ error: "Report not found" });
+        }
+
+        // Handle case where conversation ID might not exist
+        if (!report.conversationId) {
+            return res.json({ 
+                messages: [],
+                conversation: null,
+                error: "No chat history available for this report"
+            });
+        }
+
+        const conversation = await Conversation.findById(report.conversationId).populate('product');
+        if (!conversation) {
+            return res.json({
+                messages: [],
+                conversation: null,
+                error: "Chat conversation no longer exists"
+            });
+        }
+
+        const messages = await Message.find({ conversationId: report.conversationId })
+            .sort({ createdAt: 1 });
+
+        res.json({
+            messages,
+            conversation,
+            success: true
+        });
+    } catch (err) {
+        console.error("Error fetching reported chat:", err);
+        res.status(500).json({ error: "Error loading chat messages" });
+    }
+});
 
 // Port opening
 server.listen(3000, function() {

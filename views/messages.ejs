@@ -79,6 +79,18 @@
                 <div class="card chat-box">
                     <div class="card-header">
                         <% if (currentConversation) { %>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5>Conversation with <%= currentConversation ? (currentConversation.seller === user_name ? currentConversation.buyer : currentConversation.seller) : '' %></h5>
+                                <% if (currentConversation && currentConversation.seller !== user_name) { %>
+                                    <button class="btn btn-warning btn-sm" onclick="openReportModal('<%= currentConversation.seller %>')">
+                                        <i class="fas fa-flag"></i> Report User
+                                    </button>
+                                <% } else if (currentConversation && currentConversation.buyer !== user_name) { %>
+                                    <button class="btn btn-warning btn-sm" onclick="openReportModal('<%= currentConversation.buyer %>')">
+                                        <i class="fas fa-flag"></i> Report User
+                                    </button>
+                                <% } %>
+                            </div>
                             <h5 class="mb-0">
                                 <%= currentConversation.product.name %> - 
                                 Chat with <%= currentConversation.seller === user_name ? currentConversation.buyer : currentConversation.seller %>
@@ -128,6 +140,71 @@
                             </form>
                         </div>
                     <% } %>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Replace existing Report User Modal with this enhanced version -->
+    <div class="modal fade" id="reportModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title">
+                        <i class="fas fa-flag"></i> Report User
+                    </h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="reportForm">
+                        <input type="hidden" id="reportedUser" name="reportedUser">
+                        
+                        <div class="form-group">
+                            <label>Select Reason for Report:</label>
+                            <div class="custom-control custom-radio mb-2">
+                                <input type="radio" id="spam" name="reportReason" class="custom-control-input" value="Spam or misleading behavior">
+                                <label class="custom-control-label" for="spam">Spam or misleading behavior</label>
+                            </div>
+                            <div class="custom-control custom-radio mb-2">
+                                <input type="radio" id="harassment" name="reportReason" class="custom-control-input" value="Harassment or inappropriate behavior">
+                                <label class="custom-control-label" for="harassment">Harassment or inappropriate behavior</label>
+                            </div>
+                            <div class="custom-control custom-radio mb-2">
+                                <input type="radio" id="fake" name="reportReason" class="custom-control-input" value="Fake profile/impersonation">
+                                <label class="custom-control-label" for="fake">Fake profile/impersonation</label>
+                            </div>
+                            <div class="custom-control custom-radio mb-2">
+                                <input type="radio" id="scam" name="reportReason" class="custom-control-input" value="Attempted scam">
+                                <label class="custom-control-label" for="scam">Attempted scam</label>
+                            </div>
+                            <div class="custom-control custom-radio mb-2">
+                                <input type="radio" id="other" name="reportReason" class="custom-control-input" value="other">
+                                <label class="custom-control-label" for="other">Other reason</label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group" id="otherReasonGroup" style="display: none;">
+                            <label for="otherReason">Specify Other Reason:</label>
+                            <textarea class="form-control" id="otherReason" rows="3" placeholder="Please provide details..."></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="reportDescription">Additional Details (Optional):</label>
+                            <textarea class="form-control" id="reportDescription" name="reportDescription" 
+                                      rows="3" placeholder="Provide any additional details or context about this report..."></textarea>
+                            <small class="form-text text-muted">
+                                Please include specific examples or details that will help us investigate this report.
+                            </small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" onclick="submitReport()" id="submitReportBtn" disabled>
+                        <i class="fas fa-exclamation-triangle"></i> Submit Report
+                    </button>
                 </div>
             </div>
         </div>
@@ -211,6 +288,94 @@
                     sender: '<%= user_name %>'
                 });
             }
+        }
+
+        function openReportModal(username) {
+            document.getElementById('reportedUser').value = username;
+            $('#reportModal').modal('show');
+        }
+
+        // Add these new functions for report handling
+        document.querySelectorAll('input[name="reportReason"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const submitBtn = document.getElementById('submitReportBtn');
+                const otherReasonGroup = document.getElementById('otherReasonGroup');
+                
+                submitBtn.disabled = false;
+                
+                if (this.value === 'other') {
+                    otherReasonGroup.style.display = 'block';
+                    submitBtn.disabled = !document.getElementById('otherReason').value.trim();
+                } else {
+                    otherReasonGroup.style.display = 'none';
+                }
+            });
+        });
+
+        document.getElementById('otherReason').addEventListener('input', function() {
+            const submitBtn = document.getElementById('submitReportBtn');
+            submitBtn.disabled = !this.value.trim();
+        });
+
+        function submitReport() {
+            const reportedUser = document.getElementById('reportedUser').value;
+            const selectedReason = document.querySelector('input[name="reportReason"]:checked');
+            const description = document.getElementById('reportDescription').value.trim();
+            
+            if (!selectedReason) {
+                alert('Please select a reason for reporting');
+                return;
+            }
+
+            let reason = selectedReason.value;
+            if (reason === 'other') {
+                const otherReason = document.getElementById('otherReason').value.trim();
+                if (!otherReason) {
+                    alert('Please specify the other reason');
+                    return;
+                }
+                reason = otherReason;
+            }
+
+            const fullReason = description ? `${reason}\n\nAdditional Details: ${description}` : reason;
+
+            // Show loading state
+            const submitBtn = document.getElementById('submitReportBtn');
+            const originalContent = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+            submitBtn.disabled = true;
+
+            fetch('/report-user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    reportedUser,
+                    reason: fullReason,
+                    conversationId: '<%= currentConversation ? currentConversation._id : "" %>'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    // Show success message
+                    alert('Report submitted successfully');
+                    $('#reportModal').modal('hide');
+                    document.getElementById('reportForm').reset();
+                } else {
+                    throw new Error(data.error || 'Error submitting report');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error submitting report. Please try again.');
+            })
+            .finally(() => {
+                // Restore button state
+                submitBtn.innerHTML = originalContent;
+                submitBtn.disabled = false;
+            });
         }
     </script>
 </body>
