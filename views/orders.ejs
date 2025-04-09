@@ -46,48 +46,106 @@
         </div>
     </nav>
 
-    <div class="container mt-4">
-        <h2 class="text-center mb-4">My Products</h2>
+    <div class="container-fluid mt-4">
         <div class="row">
-            <% userProducts.forEach(function(product) { %>
-                <div class="col-md-4 mb-4">
-                    <div class="card h-100">
-                        <div class="product-image-wrapper">
-                            <div class="product-image-container card-img-container">
-                                <img src="/image/<%= product._id %>/0" alt="Product Image">
-                            </div>
-                        </div>
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h5 class="card-title mb-0"><%= product.name %></h5>
-                                <div>
-                                    <button class="btn btn-link text-primary p-0 mr-2" onclick="enableEdit('<%= product._id %>')">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <button class="btn btn-link text-danger p-0" onclick="confirmDelete('<%= product._id %>')">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
+            <!-- Main Products Section - Takes 9 columns -->
+            <div class="col-md-9">
+                <h2 class="text-center mb-4">My Products</h2>
+                <div class="row">
+                    <% userProducts.forEach(function(product) { %>
+                        <div class="col-md-4 mb-4">
+                            <div class="card h-100">
+                                <div class="product-image-wrapper">
+                                    <div class="product-image-container card-img-container">
+                                        <img src="/image/<%= product._id %>/0" alt="Product Image">
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h5 class="card-title mb-0"><%= product.name %></h5>
+                                        <div>
+                                            <button class="btn btn-link text-primary p-0 mr-2" onclick="enableEdit('<%= product._id %>')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-link text-danger p-0" onclick="confirmDelete('<%= product._id %>')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <form id="form-<%= product._id %>" action="/orders/update/<%= product._id %>" method="POST" class="edit-form">
+                                        <div class="form-group">
+                                            <input type="text" class="form-control" name="name" value="<%= product.name %>" readonly>
+                                        </div>
+                                        <div class="form-group">
+                                            <textarea class="form-control" name="description" rows="3" readonly><%= product.description %></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <input type="number" class="form-control" name="price" value="<%= product.price %>" readonly>
+                                        </div>
+                                        <div class="form-buttons d-none">
+                                            <button type="submit" class="btn btn-success btn-sm">Save</button>
+                                            <button type="button" class="btn btn-danger btn-sm" onclick="cancelEdit('<%= product._id %>')">Cancel</button>
+                                        </div>
+                                    </form>
                                 </div>
                             </div>
-                            <form id="form-<%= product._id %>" action="/orders/update/<%= product._id %>" method="POST" class="edit-form">
-                                <div class="form-group">
-                                    <input type="text" class="form-control" name="name" value="<%= product.name %>" readonly>
-                                </div>
-                                <div class="form-group">
-                                    <textarea class="form-control" name="description" rows="3" readonly><%= product.description %></textarea>
-                                </div>
-                                <div class="form-group">
-                                    <input type="number" class="form-control" name="price" value="<%= product.price %>" readonly>
-                                </div>
-                                <div class="form-buttons d-none">
-                                    <button type="submit" class="btn btn-success btn-sm">Save</button>
-                                    <button type="button" class="btn btn-danger btn-sm" onclick="cancelEdit('<%= product._id %>')">Cancel</button>
-                                </div>
-                            </form>
                         </div>
+                    <% }); %>
+                </div>
+            </div>
+
+            <!-- Pending Offers Section - Takes 3 columns -->
+            <div class="col-md-3">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Pending Offers</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <% if (receivedOffers && receivedOffers.length > 0) { %>
+                            <div class="list-group list-group-flush">
+                                <% receivedOffers.forEach(function(offer) { %>
+                                    <div class="list-group-item">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <img src="/image/<%= offer.productId._id %>/0" 
+                                                 alt="Product" 
+                                                 style="width: 50px; height: 50px; object-fit: cover;"
+                                                 class="mr-2 rounded">
+                                            <div>
+                                                <h6 class="mb-0"><%= offer.productId.name %></h6>
+                                                <small class="text-muted">From: <%= offer.buyer %></small>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <div>
+                                                <span class="text-muted">Original: </span>
+                                                <span class="font-weight-bold">₹<%= offer.productId.price %></span>
+                                            </div>
+                                            <div>
+                                                <span class="text-muted">Offer: </span>
+                                                <span class="font-weight-bold">₹<%= offer.amount %></span>
+                                            </div>
+                                        </div>
+                                        <div class="btn-group btn-group-sm w-100">
+                                            <button class="btn btn-success" 
+                                                    onclick="respondToOffer('<%= offer._id %>', true)">
+                                                Accept
+                                            </button>
+                                            <button class="btn btn-danger" 
+                                                    onclick="respondToOffer('<%= offer._id %>', false)">
+                                                Reject
+                                            </button>
+                                        </div>
+                                    </div>
+                                <% }); %>
+                            </div>
+                        <% } else { %>
+                            <div class="text-center py-4">
+                                <p class="text-muted mb-0">No pending offers</p>
+                            </div>
+                        <% } %>
                     </div>
                 </div>
-            <% }); %>
+            </div>
         </div>
     </div>
 
@@ -145,6 +203,32 @@
             const deleteForm = document.getElementById('deleteForm');
             deleteForm.action = `/orders/delete/${productId}`;
             $('#deleteModal').modal('show');
+        }
+
+        function respondToOffer(offerId, accept) {
+            if (!confirm(`Are you sure you want to ${accept ? 'accept' : 'reject'} this offer?`)) {
+                return;
+            }
+
+            fetch(`/respond-to-offer/${offerId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ accept })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    throw new Error(data.error || 'Error responding to offer');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error responding to offer. Please try again.');
+            });
         }
     </script>
 

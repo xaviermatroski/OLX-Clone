@@ -137,18 +137,23 @@
     <script>
         const socket = io();
         const notificationDot = document.querySelector('.notification-dot');
-        
-        // Check for existing unread messages
-        let unreadMessages = JSON.parse(localStorage.getItem('unreadMessages') || '[]');
-        if (unreadMessages.length > 0) {
-            notificationDot.classList.remove('d-none');
-        }
+        const currentUser = '<%= user_name %>';
+
+        // Connect user to socket
+        socket.emit('userConnected', currentUser);
+
+        // Check for unread messages on page load
+        fetch('/api/unread-messages')
+            .then(response => response.json())
+            .then(data => {
+                if (data.count > 0) {
+                    notificationDot.classList.remove('d-none');
+                }
+            });
 
         // Listen for new messages
         socket.on('message', (message) => {
-            if (message.sender !== '<%= user_name %>') {
-                unreadMessages.push(message.conversationId);
-                localStorage.setItem('unreadMessages', JSON.stringify(unreadMessages));
+            if (message.sender !== currentUser) {
                 notificationDot.classList.remove('d-none');
             }
         });

@@ -53,23 +53,37 @@
             <div class="col-md-4 chat-list">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="mb-0">Conversations</h5>
+                        <h5 class="mb-0">Active Conversations</h5>
                     </div>
                     <div class="list-group list-group-flush">
-                        <% conversations.forEach(function(conv) { %>
-                            <a href="/messages?conversation=<%= conv._id %>" 
-                               class="list-group-item list-group-item-action <%= currentConversation && currentConversation._id.toString() === conv._id.toString() ? 'active' : '' %>">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h6 class="mb-1"><%= conv.product.name %></h6>
-                                        <small>with <%= conv.seller === user_name ? conv.buyer : conv.seller %></small>
+                        <% if (conversations.length === 0) { %>
+                            <div class="text-center p-4 text-muted">
+                                <i class="fas fa-comments fa-2x mb-2"></i>
+                                <p class="mb-0">No active conversations yet.</p>
+                                <small>Start a conversation by clicking "Chat with Seller" on a product page.</small>
+                            </div>
+                        <% } else { %>
+                            <% conversations.forEach(function(conv) { %>
+                                <a href="/messages?conversation=<%= conv._id %>" 
+                                   class="list-group-item list-group-item-action <%= currentConversation && currentConversation._id.toString() === conv._id.toString() ? 'active' : '' %>">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">
+                                                <% if (conv.product) { %>
+                                                    <%= conv.product.name %>
+                                                <% } else { %>
+                                                    <span class="text-muted">Product no longer available</span>
+                                                <% } %>
+                                            </h6>
+                                            <small>with <%= conv.seller === user_name ? conv.buyer : conv.seller %></small>
+                                        </div>
+                                        <% if (conv.unreadCount > 0) { %>
+                                            <span class="badge badge-primary badge-pill"><%= conv.unreadCount %></span>
+                                        <% } %>
                                     </div>
-                                    <% if (conv.unreadCount > 0) { %>
-                                        <span class="badge badge-primary badge-pill"><%= conv.unreadCount %></span>
-                                    <% } %>
-                                </div>
-                            </a>
-                        <% }); %>
+                                </a>
+                            <% }); %>
+                        <% } %>
                     </div>
                 </div>
             </div>
@@ -79,22 +93,12 @@
                 <div class="card chat-box">
                     <div class="card-header">
                         <% if (currentConversation) { %>
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5>Conversation with <%= currentConversation ? (currentConversation.seller === user_name ? currentConversation.buyer : currentConversation.seller) : '' %></h5>
-                                <% if (currentConversation && currentConversation.seller !== user_name) { %>
-                                    <button class="btn btn-warning btn-sm" onclick="openReportModal('<%= currentConversation.seller %>')">
-                                        <i class="fas fa-flag"></i> Report User
-                                    </button>
-                                <% } else if (currentConversation && currentConversation.buyer !== user_name) { %>
-                                    <button class="btn btn-warning btn-sm" onclick="openReportModal('<%= currentConversation.buyer %>')">
-                                        <i class="fas fa-flag"></i> Report User
-                                    </button>
-                                <% } %>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><%= currentConversation.product.name %></h5>
+                                <button class="btn btn-warning btn-sm" onclick="openReportModal('<%= currentConversation.seller === user_name ? currentConversation.buyer : currentConversation.seller %>')">
+                                    <i class="fas fa-flag"></i> Report User
+                                </button>
                             </div>
-                            <h5 class="mb-0">
-                                <%= currentConversation.product.name %> - 
-                                Chat with <%= currentConversation.seller === user_name ? currentConversation.buyer : currentConversation.seller %>
-                            </h5>
                         <% } else { %>
                             <h5 class="mb-0">Select a conversation to start chatting</h5>
                         <% } %>
@@ -228,6 +232,10 @@
         const messageForm = document.getElementById('messageForm');
         const messageInput = document.getElementById('messageInput');
         const conversationId = '<%= currentConversation ? currentConversation._id : "" %>';
+        const currentUser = '<%= user_name %>';
+
+        // Connect and identify the user to Socket.IO server
+        socket.emit('userConnected', currentUser);
 
         // Clear unread messages when opening conversation
         if (conversationId) {
@@ -267,16 +275,19 @@
 
         // Listen for messages
         socket.on('message', (message) => {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${message.sender === '<%= user_name %>' ? 'message-sent' : 'message-received'}`;
-            messageDiv.innerHTML = `
-                <div class="message-content">
-                    <p>${message.content}</p>
-                    <small class="message-time">${new Date().toLocaleString()}</small>
-                </div>
-            `;
-            chatMessages.appendChild(messageDiv);
-            scrollToBottom();
+            // Only handle messages for the current conversation
+            if (message.conversationId === conversationId) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${message.sender === currentUser ? 'message-sent' : 'message-received'}`;
+                messageDiv.innerHTML = `
+                    <div class="message-content">
+                        <p>${message.content}</p>
+                        <small class="message-time">${new Date().toLocaleString()}</small>
+                    </div>
+                `;
+                chatMessages.appendChild(messageDiv);
+                scrollToBottom();
+            }
         });
 
         // Add Quick Message Function

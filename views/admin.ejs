@@ -58,8 +58,14 @@
                         </a>
                         <a href="#reports" class="list-group-item list-group-item-action" data-toggle="tab">
                             <i class="fas fa-flag"></i> User Reports
-                            <% if (reports && reports.length > 0) { %>
-                                <span class="badge badge-danger"><%= reports.length %></span>
+                            <% if (reports && reports.filter(r => !r.productId).length > 0) { %>
+                                <span class="badge badge-danger"><%= reports.filter(r => !r.productId).length %></span>
+                            <% } %>
+                        </a>
+                        <a href="#product-reports" class="list-group-item list-group-item-action" data-toggle="tab">
+                            <i class="fas fa-exclamation-triangle"></i> Product Reports
+                            <% if (reports && reports.filter(r => r.productId).length > 0) { %>
+                                <span class="badge badge-danger"><%= reports.filter(r => r.productId).length %></span>
                             <% } %>
                         </a>
                     </div>
@@ -170,6 +176,81 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Product Reports Tab -->
+                        <div class="tab-pane fade" id="product-reports">
+                            <div class="card">
+                                <div class="card-header bg-warning text-dark">
+                                    <h5 class="mb-0">Reported Products</h5>
+                                </div>
+                                <div class="card-body">
+                                    <% if (productReports && productReports.length > 0) { %>
+                                        <div class="table-responsive">
+                                            <table class="table table-hover">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Product</th>
+                                                        <th>Reported By</th>
+                                                        <th>Reason</th>
+                                                        <th>Date</th>
+                                                        <th>Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <% productReports.forEach(function(report) { %>
+                                                        <tr>
+                                                            <td>
+                                                                <% if (report.productId) { %>
+                                                                    <div>
+                                                                        <strong><%= report.productId.name %></strong>
+                                                                        <br>
+                                                                        <small class="text-muted">by <%= report.productId.user_name %></small>
+                                                                        <br>
+                                                                        <button class="btn btn-link btn-sm p-0 mt-1" 
+                                                                                onclick="showProductDetails({
+                                                                                    id: '<%= report.productId._id %>',
+                                                                                    name: '<%= report.productId.name %>',
+                                                                                    description: '<%= report.productId.description %>',
+                                                                                    price: '<%= report.productId.price %>',
+                                                                                    user_name: '<%= report.productId.user_name %>'
+                                                                                })">
+                                                                            View Details
+                                                                        </button>
+                                                                    </div>
+                                                                <% } else { %>
+                                                                    <span class="text-muted">Product deleted</span>
+                                                                <% } %>
+                                                            </td>
+                                                            <td><%= report.reportedBy %></td>
+                                                            <td><%= report.reason %></td>
+                                                            <td><%= report.createdAt.toLocaleDateString() %></td>
+                                                            <td>
+                                                                <div class="btn-group">
+                                                                    <button class="btn btn-sm btn-danger mr-2" 
+                                                                            onclick="deleteProduct('<%= report.productId._id %>')">
+                                                                        <i class="fas fa-trash"></i> Delete Product
+                                                                    </button>
+                                                                    <form action="/admin/dismiss-report/<%= report._id %>" method="POST" class="d-inline">
+                                                                        <button type="submit" class="btn btn-sm btn-secondary">
+                                                                            <i class="fas fa-times"></i> Dismiss
+                                                                        </button>
+                                                                    </form>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    <% }); %>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    <% } else { %>
+                                        <div class="text-center py-4">
+                                            <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
+                                            <h5>No reported products</h5>
+                                        </div>
+                                    <% } %>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -231,6 +312,130 @@
             // Silently handle error since the UI was already updated
         });
     }
+
+    function deleteProduct(productId) {
+        if (confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
+            fetch(`/admin/delete-product/${productId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reload the page to reflect changes
+                    window.location.reload();
+                } else {
+                    alert('Error deleting product: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error deleting product');
+            });
+        }
+    }
+
+    // Replace existing modal event handler with this new function
+    function showProductDetails(product) {
+        const modal = $('#productModal');
+        
+        // Update modal content
+        modal.find('#productName').text(product.name);
+        modal.find('#productDescription').text(product.description);
+        modal.find('#productPrice').text(product.price);
+        modal.find('#productSeller').text(product.user_name);
+        
+        // Set image source directly
+        modal.find('#productImage').attr('src', `/image/${product.id}/0`);
+        
+        // Set up delete button
+        modal.find('#modalDeleteBtn').off('click').on('click', function() {
+            if (confirm('Are you sure you want to delete this product?')) {
+                deleteProduct(product.id);
+                modal.modal('hide');
+            }
+        });
+
+        // Show the modal
+        modal.modal('show');
+    }
+
+    // Update the modal event handler
+    $('#productModal').on('show.bs.modal', function (event) {
+        try {
+            const button = $(event.relatedTarget);
+            const productString = decodeURIComponent(button.data('product'));
+            const product = JSON.parse(productString);
+            const modal = $(this);
+
+            // Debug output
+            console.log('Product data:', product);
+            
+            // Update modal content
+            modal.find('#productName').text(product.name || 'N/A');
+            modal.find('#productDescription').text(product.description || 'No description available');
+            modal.find('#productPrice').text(product.price || '0');
+            modal.find('#productSeller').text(product.user_name || 'Unknown');
+            
+            // Update image source if product has images
+            if (product._id) {
+                modal.find('#productImage').attr('src', `/image/${product._id}/0`);
+                modal.find('#productImage').on('error', function() {
+                    this.src = '/images/no-image.jpg'; // Fallback image if product image fails to load
+                });
+            }
+            
+            // Set up delete button with correct product ID
+            modal.find('#modalDeleteBtn').off('click').on('click', function() {
+                if (confirm('Are you sure you want to delete this product?')) {
+                    deleteProduct(product._id);
+                    modal.modal('hide');
+                }
+            });
+        } catch (error) {
+            console.error('Error parsing product data:', error);
+            alert('Error displaying product details');
+        }
+    });
     </script>
+
+    <!-- Add Product Preview Modal -->
+    <div class="modal fade" id="productModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Product Details</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="product-image-wrapper">
+                                <div class="product-image-container card-img-container">
+                                    <img id="productImage" src="" alt="Product Image">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h4 id="productName" class="mb-3"></h4>
+                            <p class="text-muted mb-3" id="productDescription"></p>
+                            <p class="mb-2">Price: ₹<span id="productPrice"></span></p>
+                            <p class="mb-0">Seller: <span id="productSeller"></span></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-danger" id="modalDeleteBtn">
+                        <i class="fas fa-trash"></i> Delete Product
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

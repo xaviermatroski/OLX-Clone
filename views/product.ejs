@@ -86,7 +86,12 @@
                 </div>
                 <div class="col-md-6">
                     <div class="product-info p-4">
-                        <h2 class="product-title mb-3"><%= product.name %></h2>
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h2 class="product-title mb-0"><%= product.name %></h2>
+                            <button class="btn btn-outline-danger" onclick="openReportModal()">
+                                <i class="fas fa-flag"></i> Report
+                            </button>
+                        </div>
                         <div class="price-tag mb-4">
                             <span class="price-label">Price:</span>
                             <span class="price-amount">₹<%= product.price %></span>
@@ -95,16 +100,116 @@
                             <h5 class="description-title">Description</h5>
                             <p class="description-text text-muted"><%= product.description %></p>
                         </div>
-                        <div class="d-flex justify-content-center">
-                            <button class="btn custom-btn login-btn" onclick="openChat('<%= product.user_name %>', '<%= product._id %>')">
-                                <i class="fas fa-comment"></i> Chat with Seller
-                            </button>
+                        <div class="text-center">
+                            <div class="btn-group">
+                                <button class="btn custom-btn login-btn mr-2" onclick="openChat('<%= product.user_name %>', '<%= product._id %>')">
+                                    <i class="fas fa-comment"></i> Chat with Seller
+                                </button>
+                                <% if (typeof existingOffer !== 'undefined' && existingOffer) { %>
+                                    <button class="btn custom-btn action-btn" onclick="openOfferModal(true)" data-offer="<%= existingOffer.amount %>">
+                                        <i class="fas fa-edit"></i> Edit Offer
+                                    </button>
+                                <% } else { %>
+                                    <button class="btn custom-btn action-btn" onclick="openOfferModal(false)">
+                                        <i class="fas fa-handshake"></i> Make Offer
+                                    </button>
+                                <% } %>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </section>
+
+    <!-- Add Report Product Modal -->
+    <div class="modal fade" id="reportModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-flag"></i> Report Product
+                    </h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="reportForm">
+                        <div class="form-group">
+                            <label>Select Reason for Report:</label>
+                            <div class="custom-control custom-radio mb-2">
+                                <input type="radio" id="inappropriate" name="reportReason" class="custom-control-input" value="Inappropriate content">
+                                <label class="custom-control-label" for="inappropriate">Inappropriate content</label>
+                            </div>
+                            <div class="custom-control custom-radio mb-2">
+                                <input type="radio" id="counterfeit" name="reportReason" class="custom-control-input" value="Counterfeit/Fake item">
+                                <label class="custom-control-label" for="counterfeit">Counterfeit/Fake item</label>
+                            </div>
+                            <div class="custom-control custom-radio mb-2">
+                                <input type="radio" id="prohibited" name="reportReason" class="custom-control-input" value="Prohibited item">
+                                <label class="custom-control-label" for="prohibited">Prohibited item</label>
+                            </div>
+                            <div class="custom-control custom-radio mb-2">
+                                <input type="radio" id="other" name="reportReason" class="custom-control-input" value="other">
+                                <label class="custom-control-label" for="other">Other reason</label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group" id="otherReasonGroup" style="display: none;">
+                            <label for="otherReason">Specify Other Reason:</label>
+                            <textarea class="form-control" id="otherReason" rows="3"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="description">Additional Details:</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" onclick="submitReport()" id="submitReportBtn">
+                        <i class="fas fa-exclamation-triangle"></i> Submit Report
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Offer Modal -->
+    <div class="modal fade" id="offerModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Make an Offer</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="offerForm">
+                        <div class="form-group">
+                            <label>Original Price: ₹<%= product.price %></label>
+                            <input type="number" 
+                                   class="form-control" 
+                                   id="offerAmount" 
+                                   placeholder="Enter your offer amount" 
+                                   required
+                                   min="1" 
+                                   max="<%= product.price %>">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="submitOffer()">
+                        Submit Offer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Footer -->
     <footer class="footer bg-dark text-white py-3 mt-auto">
@@ -120,6 +225,115 @@
     <script>
         function openChat(sellerName, productId) {
             window.location.href = `/messages?seller=${sellerName}&product=${productId}`;
+        }
+
+        function openReportModal() {
+            $('#reportModal').modal('show');
+        }
+
+        // Add these new functions for report handling
+        document.querySelectorAll('input[name="reportReason"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const otherReasonGroup = document.getElementById('otherReasonGroup');
+                if (this.value === 'other') {
+                    otherReasonGroup.style.display = 'block';
+                } else {
+                    otherReasonGroup.style.display = 'none';
+                }
+            });
+        });
+
+        function submitReport() {
+            const selectedReason = document.querySelector('input[name="reportReason"]:checked');
+            const description = document.getElementById('description').value.trim();
+            
+            if (!selectedReason) {
+                alert('Please select a reason for reporting');
+                return;
+            }
+
+            let reason = selectedReason.value;
+            if (reason === 'other') {
+                const otherReason = document.getElementById('otherReason').value.trim();
+                if (!otherReason) {
+                    alert('Please specify the other reason');
+                    return;
+                }
+                reason = otherReason;
+            }
+
+            const reportData = {
+                productId: '<%= product._id %>',
+                reason: reason,
+                description: description
+            };
+
+            fetch('/report-product', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(reportData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Report submitted successfully');
+                    $('#reportModal').modal('hide');
+                    document.getElementById('reportForm').reset();
+                } else {
+                    throw new Error(data.error || 'Error submitting report');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error submitting report. Please try again.');
+            });
+        }
+
+        function openOfferModal(isEdit) {
+            const offerAmount = document.getElementById('offerAmount');
+            if (isEdit) {
+                const currentOffer = document.querySelector('[data-offer]').getAttribute('data-offer');
+                offerAmount.value = currentOffer;
+            } else {
+                offerAmount.value = '';
+            }
+            $('#offerModal').modal('show');
+        }
+
+        function submitOffer() {
+            const amount = document.getElementById('offerAmount').value;
+            if (!amount || amount <= 0) {
+                alert('Please enter a valid offer amount');
+                return;
+            }
+
+            fetch('/make-offer', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    productId: '<%= product._id %>',
+                    amount: parseFloat(amount)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    $('#offerModal').modal('hide');
+                    // Refresh the page to update the button
+                    window.location.reload();
+                } else {
+                    throw new Error(data.error || 'Error sending offer');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error sending offer. Please try again.');
+            });
         }
     </script>
 </body>
