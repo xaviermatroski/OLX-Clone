@@ -23,7 +23,7 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ml-auto">
                 <li class="nav-item">
-                    <a class="nav-link" href="/user/<%= user_name %>">
+                    <a class="nav-link" href="/user/<%= userName %>">
                         <i class="fas fa-home"></i> Home</a>
                 </li>
                 <!-- <li class="nav-item">
@@ -36,7 +36,7 @@
                         <i class="fas fa-user"></i> Profile
                     </a>
                     <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
-                        <a class="dropdown-item" href="/profile/<%= user_name %>">View Profile</a>
+                        <a class="dropdown-item" href="/profile/<%= userName %>">View Profile</a>
                         <a class="dropdown-item" href="/orders">My Orders</a>
                         <div class="dropdown-divider"></div>
                         <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
@@ -51,7 +51,18 @@
     <section id="sell" class="py-5">
         <div class="container">
             <h2 class="text-center">Sell Your Product</h2>
-            <form action="/user/<%= user_name %>/sell" method="POST" enctype="multipart/form-data">
+            <form action="/user/<%= userName %>/sell" method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="category">Category</label>
+                    <select class="form-control" id="category" name="category" required>
+                        <option value="">Select a category</option>
+                        <option value="electronics">Electronics</option>
+                        <option value="furniture">Furniture</option>
+                        <option value="books">Books</option>
+                        <option value="clothing">Clothing</option>
+                        <option value="others">Others</option>
+                    </select>
+                </div>
                 <div class="form-group">
                     <label for="name">Product Name</label>
                     <input type="text" class="form-control" id="name" name="name" required>

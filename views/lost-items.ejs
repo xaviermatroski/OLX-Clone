@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lost & Found - IIT Ropar Marketplace</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <a class="navbar-brand" href="#">
+            <img src="/images/iitropar_logo.jpg" alt="IIT Ropar Logo" height="50">
+            IIT Ropar Marketplace
+        </a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="/user/<%= user_name %>">
+                        <i class="fas fa-home"></i> Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link position-relative" href="/messages">
+                        <i class="fas fa-envelope"></i> Messages
+                        <span class="notification-dot d-none"></span>
+                    </a>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="fas fa-user"></i> Profile
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
+                        <a class="dropdown-item" href="/profile/<%= user_name %>">View Profile</a>
+                        <a class="dropdown-item" href="/orders">My Orders</a>
+                        <div class="dropdown-divider"></div>
+                        <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
+                        <a class="dropdown-item" href="#" onclick="document.getElementById('logout-form').submit();">Logout</a>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Lost & Found Items</h2>
+            <button class="btn btn-primary" data-toggle="modal" data-target="#reportLostModal">
+                <i class="fas fa-plus"></i> Report Lost Item
+            </button>
+        </div>
+
+        <div class="row">
+            <% lostItems.forEach(function(item) { %>
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-<%= item.status === 'lost' ? 'danger' : 'success' %> text-white">
+                            <h5 class="mb-0"><%= item.name %></h5>
+                        </div>
+                        <% if (item.images && item.images.length > 0) { %>
+                            <img src="<%= item.images[0].data %>" class="card-img-top" alt="Lost Item">
+                        <% } %>
+                        <div class="card-body">
+                            <p class="card-text"><%= item.description %></p>
+                            <p><strong>Last Seen:</strong> <%= item.lastSeenLocation %></p>
+                            <p><small class="text-muted">Posted <%= moment(item.createdAt).fromNow() %></small></p>
+                        </div>
+                        <div class="card-footer">
+                            <button class="btn btn-outline-primary btn-sm" onclick="contactUser('<%= item.user %>')">
+                                Contact
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            <% }); %>
+        </div>
+    </div>
+
+    <!-- Report Lost Item Modal -->
+    <div class="modal fade" id="reportLostModal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Report Lost Item</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <form action="/lost-items/report" method="POST" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>Item Name</label>
+                            <input type="text" name="name" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea name="description" class="form-control" rows="3" required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Last Seen Location</label>
+                            <input type="text" name="lastSeenLocation" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Images (Optional)</label>
+                            <input type="file" name="images" class="form-control-file" multiple>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Submit Report</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer bg-dark text-white py-3">
+        <div class="container text-center">
+            <p>&copy; 2025 IIT Ropar Marketplace. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>

@@ -20,6 +20,15 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ml-auto">
+                <!-- Add notifications menu item -->
+                <li class="nav-item">
+                    <a class="nav-link position-relative" href="/notifications">
+                        <i class="fas fa-bell"></i>
+                        <% if (typeof unreadNotifications !== 'undefined' && unreadNotifications > 0) { %>
+                            <span class="notification-badge"><%= unreadNotifications %></span>
+                        <% } %>
+                    </a>
+                </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" data-toggle="dropdown">
                         <i class="fas fa-user-shield"></i> Admin
@@ -138,6 +147,7 @@
                                                         <th>Reported By</th>
                                                         <th>Reason</th>
                                                         <th>Date</th>
+                                                        <th>Status</th>
                                                         <th>Actions</th>
                                                     </tr>
                                                 </thead>
@@ -148,6 +158,15 @@
                                                             <td><%= report.reportedBy %></td>
                                                             <td><%= report.reason %></td>
                                                             <td><%= report.createdAt.toLocaleDateString() %></td>
+                                                            <td>
+                                                                <span class="badge badge-<%= 
+                                                                    report.status === 'pending' ? 'warning' : 
+                                                                    report.status === 'reviewed' ? 'info' : 
+                                                                    report.status === 'resolved' ? 'success' : 'secondary' 
+                                                                %>">
+                                                                    <%= report.status %>
+                                                                </span>
+                                                            </td>
                                                             <td>
                                                                 <div class="btn-group">
                                                                     <form action="/admin/resolve-report/<%= report._id %>" method="POST" class="mr-2">
@@ -193,6 +212,7 @@
                                                         <th>Reported By</th>
                                                         <th>Reason</th>
                                                         <th>Date</th>
+                                                        <th>Status</th>
                                                         <th>Actions</th>
                                                     </tr>
                                                 </thead>
@@ -224,6 +244,15 @@
                                                             <td><%= report.reportedBy %></td>
                                                             <td><%= report.reason %></td>
                                                             <td><%= report.createdAt.toLocaleDateString() %></td>
+                                                            <td>
+                                                                <span class="badge badge-<%= 
+                                                                    report.status === 'pending' ? 'warning' : 
+                                                                    report.status === 'resolved' ? 'success' : 
+                                                                    'danger' 
+                                                                %>">
+                                                                    <%= report.status %>
+                                                                </span>
+                                                            </td>
                                                             <td>
                                                                 <div class="btn-group">
                                                                     <button class="btn btn-sm btn-danger mr-2" 

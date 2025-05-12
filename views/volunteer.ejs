@@ -10,7 +10,7 @@
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <a class="navbar-brand" href="/volunteer/<%= user_name %>">
+        <a class="navbar-brand" href="/volunteer/<%= userName %>">
             <img src="/images/iitropar_logo.jpg" alt="IIT Ropar Logo" height="50">
             IIT Ropar Volunteer Portal
         </a>
@@ -32,7 +32,7 @@
                     </form>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="/volunteer/<%= user_name %>/donate">
+                    <a class="nav-link" href="/volunteer/<%= userName %>/donate">
                         <i class="fas fa-hand-holding-heart"></i> Donate
                     </a>
                 </li>
@@ -41,7 +41,7 @@
                         <i class="fas fa-user"></i> Profile
                     </a>
                     <div class="dropdown-menu dropdown-menu-right">
-                        <a class="dropdown-item" href="/profile/<%= user_name %>">View Profile</a>
+                        <a class="dropdown-item" href="/profile/<%= userName %>">View Profile</a>
                         <a class="dropdown-item" href="/donations">My Donations</a>
                         <div class="dropdown-divider"></div>
                         <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
@@ -70,8 +70,11 @@
                                     <div class="card-body">
                                         <h5 class="card-title font-weight-bold"><%= donation.name %></h5>
                                         <p class="card-text text-muted"><%= donation.description %></p>
+                                        <span class="badge badge-<%= donation.status === 'available' ? 'success' : 'secondary' %>">
+                                            <%= donation.status %>
+                                        </span>
                                         <p class="text-info mb-0">
-                                            <small><i class="fas fa-user"></i> Donated by: <%= donation.user_name %></small>
+                                            <small><i class="fas fa-user"></i> Donated by: <%= donation.userName %></small>
                                         </p>
                                     </div>
                                 </div>
@@ -102,9 +105,9 @@
                                 </thead>
                                 <tbody>
                                     <% donations.reduce((donors, donation) => {
-                                        const donor = donors.find(d => d.name === donation.user_name);
+                                        const donor = donors.find(d => d.name === donation.userName);
                                         if (donor) donor.count++;
-                                        else donors.push({ name: donation.user_name, count: 1 });
+                                        else donors.push({ name: donation.userName, count: 1 });
                                         return donors;
                                     }, [])
                                     .sort((a, b) => b.count - a.count)

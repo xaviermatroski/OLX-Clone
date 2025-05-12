@@ -23,7 +23,7 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ml-auto">
                 <li class="nav-item">
-                    <a class="nav-link" href="/user/<%= user_name %>">
+                    <a class="nav-link" href="/user/<%= userName %>">  <!-- Changed from user_name to userName -->
                         <i class="fas fa-home"></i> Home</a>
                 </li>
                 <!-- Remove the cart option -->
@@ -87,7 +87,16 @@
                 <div class="col-md-6">
                     <div class="product-info p-4">
                         <div class="d-flex justify-content-between align-items-start mb-3">
-                            <h2 class="product-title mb-0"><%= product.name %></h2>
+                            <div>
+                                <h2 class="product-title mb-0"><%= product.name %></h2>
+                                <span class="badge badge-secondary"><%= product.category %></span>
+                                <span class="badge badge-<%= 
+                                    product.status === 'available' ? 'success' : 
+                                    product.status === 'reserved' ? 'warning' : 'danger' 
+                                %>">
+                                    <%= product.status %>
+                                </span>
+                            </div>
                             <button class="btn btn-outline-danger" onclick="openReportModal()">
                                 <i class="fas fa-flag"></i> Report
                             </button>
@@ -102,7 +111,7 @@
                         </div>
                         <div class="text-center">
                             <div class="btn-group">
-                                <button class="btn custom-btn login-btn mr-2" onclick="openChat('<%= product.user_name %>', '<%= product._id %>')">
+                                <button class="btn custom-btn login-btn mr-2" onclick="openChat('<%= product.userName %>', '<%= product._id %>')">
                                     <i class="fas fa-comment"></i> Chat with Seller
                                 </button>
                                 <% if (typeof existingOffer !== 'undefined' && existingOffer) { %>
