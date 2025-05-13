@@ -1269,6 +1269,6 @@ app.post("/respond-to-offer/:offerId", isAuthenticated, async (req, res) => {
 });
 
 // Port opening
-server.listen(3000, function() {
-    console.log("Server started on port 3000");
+server.listen(3001, function() {
+    console.log("Server started on port 3001");
 });
