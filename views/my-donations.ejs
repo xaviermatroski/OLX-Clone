@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Donations - IIT Ropar Marketplace</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <a class="navbar-brand" href="/user/<%= userName %>">
+            <img src="/images/iitropar_logo.jpg" alt="IIT Ropar Logo" height="50">
+            IIT Ropar Marketplace
+        </a>
+        <!-- Add the rest of your navbar code here -->
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="/user/<%= userName %>">
+                        <i class="fas fa-home"></i> Home
+                    </a>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" data-toggle="dropdown">
+                        <i class="fas fa-user"></i> Profile
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right">
+                        <a class="dropdown-item" href="/profile/<%= userName %>">View Profile</a>
+                        <a class="dropdown-item" href="/orders">My Orders</a>
+                        <a class="dropdown-item" href="/my-donations">My Donations</a>
+                        <div class="dropdown-divider"></div>
+                        <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
+                        <a class="dropdown-item" href="#" onclick="document.getElementById('logout-form').submit();">Logout</a>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2 class="text-center mb-4">My Donations</h2>
+        <div class="row">
+            <% if (donations && donations.length > 0) { %>
+                <% donations.forEach(function(donation) { %>
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100">
+                            <div class="product-image-wrapper">
+                                <div class="product-image-container card-img-container">
+                                    <img src="/donation-image/<%= donation._id %>/0" alt="Donation Image" class="img-fluid">
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <h5 class="card-title"><%= donation.name %></h5>
+                                <p class="card-text text-muted"><%= donation.description %></p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="badge badge-<%= donation.status === 'available' ? 'success' : 'secondary' %>">
+                                        <%= donation.status %>
+                                    </span>
+                                    <button class="btn btn-danger btn-sm" onclick="confirmDelete('<%= donation._id %>')">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                </div>
+                                <% if (donation.status === 'collected') { %>
+                                    <p class="text-info mt-2">
+                                        <small>
+                                            <i class="fas fa-user"></i> Collected by: <%= donation.collectedBy.userName %>
+                                        </small>
+                                    </p>
+                                    <p class="text-muted">
+                                        <small>
+                                            <i class="fas fa-calendar"></i> Collection date: 
+                                            <%= new Date(donation.updatedAt).toLocaleDateString() %>
+                                        </small>
+                                    </p>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+                <% }); %>
+            <% } else { %>
+                <div class="col-12">
+                    <div class="alert alert-info text-center">
+                        <i class="fas fa-info-circle"></i> You haven't made any donations yet.
+                    </div>
+                </div>
+            <% } %>
+        </div>
+    </div>
+
+    <footer class="footer bg-dark text-white py-3 mt-auto">
+        <div class="container text-center">
+            <p>&copy; 2025 IIT Ropar Marketplace. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Delete</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete this donation? This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <form id="deleteForm" method="POST" style="display: inline;">
+                        <button type="submit" class="btn btn-danger">Delete</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        function confirmDelete(donationId) {
+            const deleteForm = document.getElementById('deleteForm');
+            deleteForm.action = `/my-donations/delete/${donationId}`;
+            $('#deleteModal').modal('show');
+        }
+    </script>
+</body>
+</html>

@@ -37,6 +37,10 @@ const ConversationSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  product: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Product'
+  },
   nextMessageId: {
     type: Number,
     default: 1

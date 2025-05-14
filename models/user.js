@@ -57,7 +57,7 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'volunteer', 'volunteer_pending', 'user'],
+    enum: ['user', 'admin', 'volunteer'],
     default: 'user'
   },
   isBlocked: {
@@ -88,7 +88,7 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     default: null
   }
-});
+}, { timestamps: true });
 
 // Hash password before saving
 UserSchema.pre('save', async function(next) {

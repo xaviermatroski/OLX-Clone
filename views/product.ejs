@@ -233,7 +233,29 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>
         function openChat(sellerName, productId) {
-            window.location.href = `/messages?seller=${sellerName}&product=${productId}`;
+            fetch('/start-chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    seller: '<%= product.seller.userName %>',
+                    productName: '<%= product.name %>',
+                    forceMessage: true // Add this flag to force sending message
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = data.redirectUrl;
+                } else {
+                    throw new Error(data.error || 'Error starting chat');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error starting chat. Please try again.');
+            });
         }
 
         function openReportModal() {
@@ -274,7 +296,7 @@
             const reportData = {
                 productId: '<%= product._id %>',
                 reason: reason,
-                description: description
+                description: description // This is now optional
             };
 
             fetch('/report-product', {

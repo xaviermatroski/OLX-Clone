@@ -2,10 +2,9 @@ const GENERAL_OTP = "123456"
 
 const express = require("express");
 const bodyParser = require("body-parser");
-const mongoose = require("mongoose")
 const ejs = require("ejs");
-const nodemailer = require("nodemailer")
-const session = require("express-session")
+const nodemailer = require("nodemailer");
+const session = require("express-session");
 const multer = require("multer");
 const path = require("path");
 const bcrypt = require("bcrypt"); // Add bcrypt for password hashing
@@ -16,15 +15,38 @@ const app = express();
 
 app.set("view engine", "ejs");
 
-app.use(bodyParser.urlencoded({extended: true}));
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 app.use(express.json());
-
-mongoose.connect(process.env.CONNECTION_STRING)
 
 // Add at the top with other requires
 const server = require('http').createServer(app);
 const io = require('socket.io')(server);
+
+// Database
+const mongoose = require('mongoose');
+
+// Database connection configuration
+const connectDB = async () => {
+    try {
+        const uri = process.env.MONGO_URI;
+        await mongoose.connect(uri, {
+            dbName: 'campuskart-database',
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            autoIndex: true
+        });
+        console.log('✅ Connected to MongoDB');
+        console.log(`Database: ${mongoose.connection.db.databaseName}`);
+    } catch (err) {
+        console.error('❌ DB connection error:', err);
+        console.error('Connection URI:', process.env.MONGO_URI?.split('?')[0]); // Safe logging of URI without credentials
+        process.exit(1);
+    }
+};
+
+// Call connectDB immediately after imports
+connectDB();
 
 // Import all models
 const User = require('./models/user');
@@ -66,15 +88,19 @@ function isAuthenticated(req, res, next) {
     }
 }
 
+// Update isAuthorized middleware
 function isAuthorized(role) {
-    return (req, res, next) => {
-        // Allow admin to access all routes
-        if (req.session.isAuthenticated && req.session.userRole === 'admin') {
-            return next();
-        }
-        // Check specific role for non-admin users
-        if (req.session.isAuthenticated && req.session.userRole === role) {
-            return next();
+    return async (req, res, next) => {
+        if (req.session.isAuthenticated) {
+            try {
+                const user = await User.findOne({ email: req.session.userEmail });
+                if (user && user.role === role) {
+                    next();
+                    return;
+                }
+            } catch (err) {
+                console.error('Authorization error:', err);
+            }
         }
         res.status(403).send("Access denied. Unauthorized access.");
     };
@@ -92,6 +118,49 @@ async function getUnreadNotificationsCount(userEmail) {
         return 0;
     }
 }
+
+// Create notification helper function
+async function createNotification(userId, type, message, productId = null) {
+    try {
+        const notification = new Notification({
+            userId,
+            type,
+            message,
+            productId,
+            read: false
+        });
+        await notification.save();
+        console.log('Created notification:', notification);
+        
+        // Emit to all sockets (we'll filter on the client side)
+        io.emit('new_notification', {
+            _id: notification._id,
+            type: notification.type,
+            message: notification.message,
+            productId: notification.productId,
+            createdAt: notification.createdAt
+        });
+        
+        return notification;
+    } catch (err) {
+        console.error('Error creating notification:', err);
+        return null;
+    }
+}
+
+// Update Socket.IO connection handling
+io.on('connection', (socket) => {
+    socket.on('userConnected', async (userId) => {
+        console.log('User connected:', userId);
+        socket.join(`user_${userId}`);
+    });
+
+    // Add this to handle notification events
+    socket.on('notification', (data) => {
+        console.log('New notification:', data);
+        io.to(`user_${data.userId}`).emit('new_notification', data);
+    });
+});
 
 // Register get 
 app.get("/register", (req, res) => {
@@ -238,10 +307,11 @@ app.post("/verify-otp", async (req, res) => {
         if (role === "admin") {
             // Create admin account
             const hashedPassword = await bcrypt.hash(password, 10);
-            const admin = new Admin({
-                adminName: userName,
-                adminEmail: email,
-                password: hashedPassword
+            const admin = new User({
+                userName,
+                email,
+                password: hashedPassword,
+                role: 'admin'
             });
             await admin.save();
         } else {
@@ -319,7 +389,183 @@ app.get("/", async (req, res) => {
     res.render("home", { isAuthenticated, userName });
 });
 
-// Admin page
+// Admin dashboard route
+app.route("/admin/:adminName")
+    .get(isAuthenticated, isAuthorized("admin"), async (req, res) => {
+        try {
+            const admin = await User.findOne({ 
+                userName: req.params.adminName,
+                role: 'admin'
+            });
+
+            if (!admin) {
+                return res.status(404).send("Admin not found");
+            }
+
+            // Get all users except admins
+            const users = await User.find({ role: { $ne: 'admin' } })
+                .select('userName email role isBlocked')
+                .lean();
+
+            // Get product reports with populated fields
+            const productReports = await ProductReport.find()
+                .populate('product')
+                .populate('reporter', 'userName')
+                .lean();
+
+            // Map the product reports to include necessary data
+            const mappedReports = productReports.map(report => ({
+                _id: report._id,
+                product: report.product ? {
+                    _id: report.product._id,
+                    name: report.product.name,
+                    userName: report.product.userName,
+                    description: report.product.description,
+                    price: report.product.price
+                } : null,
+                reportedBy: report.reporter?.userName || 'Unknown',
+                reason: report.reason,
+                status: report.status,
+                createdAt: report.createdAt
+            }));
+
+            res.render("admin", {
+                admin_name: admin.userName,
+                users: users,
+                productReports: mappedReports,
+                reports: [] // Add other reports if needed
+            });
+        } catch (err) {
+            console.error("Error loading admin dashboard:", err);
+            res.status(500).send("Error loading admin dashboard");
+        }
+    });
+
+// Add a catch-all route for admin paths
+app.get("/admin/*", isAuthenticated, isAuthorized("admin"), (req, res) => {
+    res.redirect(`/admin/${req.session.userEmail ? req.session.userEmail.split('@')[0] : ''}`);
+});
+
+// Toggle user block status
+app.post("/admin/toggle-block/:userId", isAuthenticated, isAuthorized("admin"), async (req, res) => {
+    try {
+        const user = await User.findById(req.params.userId);
+        
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+
+        if (user.role === 'admin') {
+            return res.status(403).json({ success: false, error: 'Cannot block admin users' });
+        }
+
+        // Toggle the blocked status
+        user.isBlocked = !user.isBlocked;
+        user.blockedAt = user.isBlocked ? new Date() : null;
+        await user.save();
+
+        res.json({
+            success: true,
+            isBlocked: user.isBlocked,
+            message: `User ${user.isBlocked ? 'blocked' : 'unblocked'} successfully`
+        });
+    } catch (err) {
+        console.error('Error toggling user block status:', err);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Error toggling user block status' 
+        });
+    }
+});
+
+// Update admin product report handling route
+app.post("/admin/resolve-product-report/:reportId", isAuthenticated, isAuthorized("admin"), async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const { action, remarks } = req.body;
+        const report = await ProductReport.findById(req.params.reportId)
+            .populate('product')
+            .populate('reporter');
+
+        if (!report) {
+            throw new Error('Report not found');
+        }
+
+        // Common updates
+        report.status = 'resolved';
+        report.adminNotes = remarks;
+
+        // Handle different actions
+        switch (action) {
+            case 'delete_product':
+                if (!report.product) {
+                    throw new Error('Product not found');
+                }
+                await Product.findByIdAndDelete(report.product._id, { session });
+                break;
+
+            case 'resolve_only':
+                // No additional action needed
+                break;
+
+            default:
+                throw new Error('Invalid action');
+        }
+
+        await report.save({ session });
+        await session.commitTransaction();
+
+        res.json({ success: true });
+    } catch (err) {
+        await session.abortTransaction();
+        console.error('Error resolving report:', err);
+        res.status(500).json({ 
+            success: false, 
+            error: err.message || 'Error resolving report' 
+        });
+    } finally {
+        session.endSession();
+    }
+});
+
+// Initialize admin function
+async function initializeAdmin() {
+    try {
+        // Check if admin exists
+        const adminExists = await User.findOne({ role: 'admin' });
+        
+        if (!adminExists) {
+            // Create default admin account
+            const hashedPassword = await bcrypt.hash('admin123', 10);
+            const admin = new User({
+                userName: 'admin',
+                email: 'admin@iitrpr.ac.in',
+                phone: '0000000000',
+                password: hashedPassword,
+                role: 'admin',
+                address: {
+                    street: 'IIT Ropar',
+                    city: 'Rupnagar',
+                    state: 'Punjab',
+                    zipCode: '140001'
+                }
+            });
+            await admin.save();
+            console.log('Default admin account created');
+        }
+    } catch (err) {
+        console.error('Error initializing admin:', err);
+    }
+}
+
+// Call initializeAdmin when the server starts
+initializeAdmin().then(() => {
+    console.log("Admin initialization completed");
+}).catch(err => {
+    console.error("Failed to initialize admin:", err);
+});
 
 // Set up multer for file uploads
 const upload = multer({
@@ -445,8 +691,8 @@ app.get("/profile/:userName", isAuthenticated, async (req, res) => {
     try {
         // Check if it's an admin profile
         if (req.session.userRole === 'admin') {
-            const admin = await Admin.findOne({ adminEmail: req.session.userEmail });
-            if (admin && admin.adminName === userName) {
+            const admin = await User.findOne({ userName: userName, role: 'admin' });
+            if (admin) {
                 return res.render("admin-profile", { admin });
             }
 
@@ -465,60 +711,82 @@ app.get("/profile/:userName", isAuthenticated, async (req, res) => {
     }
 });
 
-// Handle profile update - modify to handle both roles
+// Handle profile update
 app.post("/profile/:userName", isAuthenticated, async (req, res) => {
-    const userName = req.params.userName;
-    const { bio, contact_no, email, address } = req.body;
-
     try {
-        const user = await User.findOneAndUpdate(
-            { userName: userName, email: req.session.userEmail },
-            { bio, contact_no, email, address },
-            { new: true }
-        );
-        if (user) {
-            // Redirect based on user role
-            const redirectPath = user.role === "volunteer" ? "/volunteer/" : "/user/";
-            res.redirect(`/profile/${userName}`);
-        } else {
-            res.status(403).send("Access denied. Unauthorized access.");
+        const user = await User.findOne({
+            userName: req.params.userName,
+            email: req.session.userEmail
+        });
+
+        if (!user) {
+            return res.redirect('/login');
         }
+
+        // Update user fields
+        user.phone = req.body.phone;
+        user.address = {
+            street: req.body.address.street || '',
+            city: req.body.address.city || '',
+            state: req.body.address.state || '',
+            zipCode: req.body.address.zipCode || ''
+        };
+
+        // Save the changes
+        await user.save();
+
+        // Redirect back to profile page
+        res.redirect(`/profile/${user.userName}`);
     } catch (err) {
-        console.error("Error updating user:", err);
-        res.status(500).send("Server error.");
+        console.error("Error updating profile:", err);
+        res.status(500).send("Error updating profile");
     }
 });
 
-// Add admin profile update route
-app.post("/profile/:adminName/update", isAuthenticated, isAuthorized("admin"), async (req, res) => {
-    const adminName = req.params.adminName;
-    const { new_name, current_password, new_password } = req.body;
-
+// Handle profile image upload
+app.post("/profile/:userName/upload-image", isAuthenticated, upload.single('profilePicture'), async (req, res) => {
     try {
-        const admin = await Admin.findOne({ adminEmail: req.session.userEmail });
-        
-        if (!admin || admin.adminName !== adminName) {
-            return res.status(403).send("Unauthorized access");
+        if (!req.file) {
+            return res.status(400).json({ success: false, error: 'No image provided' });
         }
 
-        // If changing password, verify current password
-        if (new_password) {
-            if (!await bcrypt.compare(current_password, admin.password)) {
-                return res.status(400).send("Current password is incorrect");
-            }
-            admin.password = await bcrypt.hash(new_password, 10);
+        const user = await User.findOneAndUpdate(
+            { userName: req.params.userName, email: req.session.userEmail },
+            { 
+                $set: { 
+                    profilePicture: req.file.buffer 
+                } 
+            },
+            { new: true }
+        );
+
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User not found' });
         }
 
-        // Update admin name if provided
-        if (new_name) {
-            admin.adminName = new_name;
-        }
-
-        await admin.save();
-        res.redirect(`/profile/${admin.adminName}`);
+        res.json({ success: true, message: 'Profile picture updated successfully' });
     } catch (err) {
-        console.error("Error updating admin profile:", err);
-        res.status(500).send("Server error");
+        console.error("Error uploading profile image:", err);
+        res.status(500).json({ success: false, error: 'Error uploading profile picture' });
+    }
+});
+
+// Get profile image
+app.get("/profile-image/:userId", async (req, res) => {
+    try {
+        const user = await User.findById(req.params.userId);
+        if (!user || !user.profilePicture) {
+            // Send default profile image if no custom image exists
+            return res.sendFile(path.join(__dirname, 'public', 'images', 'default-profile.jpg'));
+        }
+
+        // Set the correct content type
+        res.set('Content-Type', user.profilePicture.contentType);
+        // Send the image data from MongoDB
+        res.send(user.profilePicture.data);
+    } catch (err) {
+        console.error("Error serving profile image:", err);
+        res.status(500).send("Error loading profile image");
     }
 });
 
@@ -638,6 +906,7 @@ io.on('connection', (socket) => {
 app.get('/messages', isAuthenticated, async (req, res) => {
     try {
         const user = await User.findOne({ email: req.session.userEmail });
+        const { seller, productName } = req.query;  // Add productName to destructuring
         
         // Find conversations where user is a participant
         const conversations = await Conversation.find({
@@ -645,17 +914,14 @@ app.get('/messages', isAuthenticated, async (req, res) => {
         })
         .populate('participants', 'userName')
         .populate('messages.sender', 'userName')
-        // Update populate to match schema structure - messages.replyTo.id for product references
         .sort({ updatedAt: -1 });
-
-        // Get the first conversation as current if it exists
-        const currentConversation = conversations.length > 0 ? conversations[0] : null;
 
         res.render('messages', { 
             userName: user.userName,
             conversations,
-            currentConversation,
-            unreadCount: await getUnreadNotificationsCount(req.session.userEmail)
+            currentConversation: null,
+            unreadCount: await getUnreadNotificationsCount(req.session.userEmail),
+            initialMessage: productName ? `Hi, I'm interested in: ${productName}` : null
         });
     } catch (err) {
         console.error('Error loading messages:', err);
@@ -721,28 +987,130 @@ app.get('/api/unread-messages', isAuthenticated, async (req, res) => {
     }
 });
 
+// Add route to create new conversation
+app.post('/messages/create', isAuthenticated, async (req, res) => {
+    try {
+        const { otherUser, message } = req.body;
+        const currentUser = await User.findOne({ email: req.session.userEmail });
+        const otherUserDoc = await User.findOne({ userName: otherUser });
+
+        if (!otherUserDoc) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Check if conversation already exists
+        let conversation = await Conversation.findOne({
+            participants: { 
+                $all: [currentUser._id, otherUserDoc._id]
+            }
+        });
+
+        if (!conversation) {
+            // Create new conversation with initial message
+            conversation = new Conversation({
+                participants: [currentUser._id, otherUserDoc._id],
+                messages: [{
+                    sender: currentUser._id,
+                    text: message,
+                    messageId: 1,
+                    createdAt: new Date()
+                }],
+                nextMessageId: 2
+            });
+            await conversation.save();
+        }
+
+        res.json({ 
+            success: true, 
+            conversationId: conversation._id 
+        });
+    } catch (err) {
+        console.error('Error creating conversation:', err);
+        res.status(500).json({ error: 'Error creating conversation' });
+    }
+});
+
+// Add this new route to handle initial chat messages
+app.post('/start-chat', isAuthenticated, async (req, res) => {
+    try {
+        const { seller, productName, forceMessage } = req.body;
+        const currentUser = await User.findOne({ email: req.session.userEmail });
+        const sellerUser = await User.findOne({ userName: seller });
+
+        if (!sellerUser) {
+            return res.status(404).json({ error: 'Seller not found' });
+        }
+
+        // Find existing conversation
+        let conversation = await Conversation.findOne({
+            participants: { $all: [currentUser._id, sellerUser._id] }
+        });
+
+        // If conversation exists and forceMessage is true, add new message
+        if (conversation && forceMessage) {
+            conversation.messages.push({
+                sender: currentUser._id,
+                text: `Hi, I'm interested in: ${productName}`,
+                messageId: conversation.nextMessageId
+            });
+            conversation.nextMessageId += 1;
+            await conversation.save();
+        }
+
+        // If conversation doesn't exist, create new one with initial message
+        if (!conversation) {
+            conversation = new Conversation({
+                participants: [currentUser._id, sellerUser._id],
+                messages: [{
+                    sender: currentUser._id,
+                    text: `Hi, I'm interested in: ${productName}`,
+                    messageId: 1
+                }],
+                nextMessageId: 2
+            });
+            await conversation.save();
+        }
+
+        res.json({ 
+            success: true, 
+            redirectUrl: `/messages?seller=${encodeURIComponent(seller)}` 
+        });
+    } catch (err) {
+        console.error('Error starting chat:', err);
+        res.status(500).json({ error: 'Error starting chat' });
+    }
+});
+
 // Orders page - show user's products
 app.get("/orders", isAuthenticated, async (req, res) => {
     const user = await User.findOne({ email: req.session.userEmail });
     
     try {
-        // Get user's products
-        const userProducts = await Product.find({ seller: user._id });
+        // Get user's products with populated buyer information
+        const userProducts = await Product.find({ seller: user._id })
+            .populate('buyer', 'userName email phone address');
 
-        // Get products where this user has pending offers
-        const productsWithPendingOffers = await Product.find({
-            'offerRequests': {
-                $elemMatch: {
-                    buyer: user._id,
-                    status: 'pending'
-                }
-            }
-        });
+        // Get products where this user has received offers AND product is available
+        const productsWithOffers = await Product.find({
+            seller: user._id,
+            'offerRequests.0': { $exists: true },
+            status: 'available'
+        }).populate('offerRequests.buyer');
+
+        const receivedOffers = productsWithOffers.reduce((offers, product) => {
+            const productOffers = product.offerRequests.map(offer => ({
+                _id: offer._id,
+                productId: product,
+                amount: offer.offerPrice,
+                buyer: offer.buyer.userName
+            }));
+            return [...offers, ...productOffers];
+        }, []);
 
         res.render("orders", { 
-            userName: user.userName, // Changed from user_name to userName
+            userName: user.userName,
             userProducts,
-            receivedOffers: productsWithPendingOffers
+            receivedOffers
         });
     } catch (err) {
         console.error("Error finding user products:", err);
@@ -826,6 +1194,27 @@ app.post("/orders/delete/:productId", isAuthenticated, async (req, res) => {
     }
 });
 
+// Add close product route
+app.post("/orders/close/:productId", isAuthenticated, async (req, res) => {
+    const { productId } = req.params;
+    const user = await User.findOne({ email: req.session.userEmail });
+
+    try {
+        const product = await Product.findById(productId);
+        if (!product || !product.seller.equals(user._id)) {
+            return res.status(403).json({ success: false, error: "Unauthorized" });
+        }
+
+        product.status = 'closed';
+        await product.save();
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Error closing product:", err);
+        res.status(500).json({ success: false, error: "Server error" });
+    }
+});
+
 // Volunteer search route - MOVE THIS SECTION UP
 app.get("/volunteer/search", isAuthenticated, isAuthorized("volunteer"), async (req, res) => {
     const query = req.query.query;
@@ -870,40 +1259,52 @@ app.get("/volunteer/:userName", isAuthenticated, isAuthorized("volunteer"), asyn
     
     if (req.session.userEmail) {
         try {
-            const user = await User.findOne({ userName: userName, email: req.session.userEmail });
-            if (user) {
-                const donations = await Donation.find({ 
-                    status: 'available',
-                    adminApproved: true 
-                }).populate('donor', 'userName');
-                res.render("volunteer", { donations: donations, userName: userName });
-            } else {
-                res.status(403).send("Access denied. Unauthorized access.");
+            const user = await User.findOne({ email: req.session.userEmail });
+            if (!user) {
+                return res.status(404).send("User not found");
             }
+
+            // Fetch all available donations and populate the donatedBy field
+            const donations = await Donation.find({ status: 'available' })
+                .populate('donatedBy', 'userName');
+            
+            // Add userName to each donation for display purposes
+            const donationsWithUserName = donations.map(donation => {
+                const donationObj = donation.toObject();
+                donationObj.userName = donation.donatedBy ? donation.donatedBy.userName : 'Unknown';
+                return donationObj;
+            });
+
+            res.render("volunteer", {
+                userName: userName,
+                donations: donationsWithUserName
+            });
         } catch (err) {
-            console.error("Error finding donations:", err);
-            res.status(500).send("Server error.");
+            console.error("Error:", err);
+            res.status(500).send("Server error");
         }
     } else {
         res.status(403).send("Access denied. Please log in.");
     }
 });
 
-// Volunteer donate page
-app.get("/volunteer/:userName/donate", isAuthenticated, isAuthorized("volunteer"), (req, res) => {
+// Update the donate routes - remove isAuthorized middleware completely
+app.get("/volunteer/:userName/donate", isAuthenticated, (req, res) => {
     const userName = req.params.userName;
     res.render("donate", { userName: userName });
 });
 
-// Handle donation submission
-app.post("/volunteer/:userName/donate", isAuthenticated, isAuthorized("volunteer"), upload.array("image", 5), async (req, res) => {
-    const userName = req.params.userName;
-    const { name, description, category, condition } = req.body;
-    
+app.post("/volunteer/:userName/donate", isAuthenticated, upload.array("image", 5), async (req, res) => {
     try {
+        const userName = req.params.userName;
+        const { name, description } = req.body;
+        
         const donor = await User.findOne({ userName: userName });
         
-        // Compress and process images
+        if (!donor) {
+            throw new Error('User not found');
+        }
+
         const images = await Promise.all(req.files.map(async (file) => ({
             data: await compressImage(file.buffer),
             contentType: 'image/jpeg'
@@ -912,28 +1313,31 @@ app.post("/volunteer/:userName/donate", isAuthenticated, isAuthorized("volunteer
         const newDonation = new Donation({
             name,
             description,
-            category,
-            condition,
             images,
-            donor: donor._id,
-            status: 'available',
-            location: 'IIT Ropar Campus',
-            adminApproved: false
+            donatedBy: donor._id,
+            status: 'available'
         });
 
         await newDonation.save();
-
-        // Create notification for admin
-        await Notification.create({
-            userId: donor._id,
-            type: 'new_donation',
-            message: `New donation item "${name}" requires approval`,
-        });
-
-        res.redirect(`/volunteer/${userName}`);
+        res.redirect(`/user/${userName}`);
     } catch (err) {
         console.error("Error processing donation:", err);
-        res.status(500).send("An error occurred while processing donation.");
+        res.status(500).send("An error occurred while processing your donation.");
+    }
+});
+
+// Add route to serve donation images
+app.get("/donation-image/:donationId/:index", async (req, res) => {
+    try {
+        const donation = await Donation.findById(req.params.donationId);
+        if (!donation || !donation.images || !donation.images[req.params.index]) {
+            return res.status(404).sendFile(path.join(__dirname, 'public', 'images', 'no-image.jpg'));
+        }
+        res.set('Content-Type', donation.images[req.params.index].contentType);
+        res.send(donation.images[req.params.index].data);
+    } catch (err) {
+        console.error("Error serving donation image:", err);
+        res.status(500).send("Error loading image");
     }
 });
 
@@ -954,6 +1358,59 @@ app.get("/donations", isAuthenticated, isAuthorized("volunteer"), async (req, re
     } catch (err) {
         console.error("Error finding donations:", err);
         res.status(500).send("Server error.");
+    }
+});
+
+// Add route for viewing user's donations
+app.get("/my-donations", isAuthenticated, async (req, res) => {
+    try {
+        const user = await User.findOne({ email: req.session.userEmail });
+        
+        const donations = await Donation.find({
+            donatedBy: user._id
+        }).populate('collectedBy', 'userName');
+
+        res.render("my-donations", { 
+            donations: donations,
+            userName: user.userName 
+        });
+    } catch (err) {
+        console.error("Error fetching user donations:", err);
+        res.status(500).send("Error fetching donations");
+    }
+});
+
+// Add route for deleting donation
+app.post("/my-donations/delete/:donationId", isAuthenticated, async (req, res) => {
+    try {
+        const { donationId } = req.params;
+        const user = await User.findOne({ email: req.session.userEmail });
+
+        // Find the donation and check if it belongs to the user
+        const donation = await Donation.findOne({
+            _id: donationId,
+            donatedBy: user._id
+        });
+
+        if (!donation) {
+            return res.status(404).json({ success: false, error: 'Donation not found or unauthorized' });
+        }
+
+        // Check if donation is already collected
+        if (donation.status === 'collected') {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Cannot delete collected donations' 
+            });
+        }
+
+        // Delete the donation
+        await Donation.findByIdAndDelete(donationId);
+
+        res.redirect('/my-donations');
+    } catch (err) {
+        console.error("Error deleting donation:", err);
+        res.status(500).send("Error deleting donation");
     }
 });
 
@@ -995,123 +1452,6 @@ app.get('/image/:productId/:index', async (req, res) => {
         }
     } catch (err) {
         res.status(500).send('Error retrieving image');
-    }
-});
-
-// // Update MongoDB migration route (temporary)
-// app.get("/update-products", async (req, res) => {
-//     try {
-//         // Update existing products to include is_donation field
-//         await Product.updateMany(
-//             { is_donation: { $exists: false } },
-//             { $set: { is_donation: false } }
-//         );
-        
-//         // Update existing users to include role field
-//         await User.updateMany(
-//             { role: { $exists: false } },
-//             { $set: { role: 'user' } }
-//         );
-        
-//         res.send("Database updated successfully");
-//     } catch (err) {
-//         console.error("Error updating database:", err);
-//         res.status(500).send("Error updating database");
-//     }
-// });
-
-// Admin dashboard
-app.route("/admin/:adminName")
-    .get(isAuthenticated, isAuthorized("admin"), async (req, res) => {
-        const adminName = req.params.adminName;
-        
-        try {
-            const admin = await Admin.findOne({ adminName: adminName });
-            if (!admin) {
-                return res.status(404).send("Admin not found");
-            }
-
-            const users = await User.find({});
-            const userReports = await UserReport.find({ status: 'pending' })
-                .populate('reporter', 'userName')
-                .populate('reportedUser', 'userName');
-
-            const productReports = await ProductReport.find({ status: 'pending' })
-                .populate('reporter', 'userName')
-                .populate('product');
-
-            res.render("admin", { 
-                adminName,
-                users,
-                userReports,
-                productReports
-            });
-        } catch (err) {
-            console.error("Error loading admin dashboard:", err);
-            res.status(500).send("Server error");
-        }
-    });
-
-// Add a catch-all route for admin paths
-app.get("/admin/*", isAuthenticated, isAuthorized("admin"), (req, res) => {
-    res.redirect(`/admin/${req.session.userEmail ? req.session.userEmail.split('@')[0] : ''}`);
-});
-
-// Initialize admin account if none exists
-async function initializeAdmin() {
-    try {
-        const adminEmail = "admin@iitrpr.ac.in";
-        const adminExists = await Admin.findOne({ adminEmail: adminEmail });
-        
-        if (!adminExists) {
-            const hashedPassword = await bcrypt.hash("admin123", 10);
-            const admin = new Admin({
-                adminName: "admin",
-                adminEmail: adminEmail,
-                password: hashedPassword
-            });
-            await admin.save();
-            console.log("Admin account initialized with:");
-            console.log("Email:", adminEmail);
-            console.log("Password: admin123");
-        }
-    } catch (err) {
-        console.error("Error initializing admin:", err);
-    }
-}
-
-// Call initializeAdmin when the server starts
-initializeAdmin().then(() => {
-    console.log("Admin initialization completed");
-}).catch(err => {
-    console.error("Failed to initialize admin:", err);
-});
-
-// Toggle user block status
-app.post("/admin/toggle-block/:userId", isAuthenticated, isAuthorized("admin"), async (req, res) => {
-    try {
-        const user = await User.findById(req.params.userId);
-        if (!user) {
-            return res.status(404).json({ 
-                success: false, 
-                error: "User not found" 
-            });
-        }
-        
-        user.blocked = !user.blocked;
-        await user.save();
-        
-        return res.status(200).json({
-            success: true,
-            blocked: user.blocked,
-            message: `User ${user.blocked ? 'blocked' : 'unblocked'} successfully`
-        });
-    } catch (err) {
-        console.error("Error toggling user block status:", err);
-        return res.status(500).json({ 
-            success: false, 
-            error: "Server error while updating user status" 
-        });
     }
 });
 
@@ -1212,43 +1552,24 @@ app.post("/admin/review-user-report/:reportId", isAuthenticated, isAuthorized("a
 // Add product report endpoint
 app.post("/report-product", isAuthenticated, async (req, res) => {
     try {
+        const { productId, reason, description = '' } = req.body;
         const reporter = await User.findOne({ email: req.session.userEmail });
-        const { productId, reason, description } = req.body;
 
-        // Validate product exists
-        const product = await Product.findById(productId);
-        if (!product) {
-            return res.status(404).json({ success: false, error: "Product not found" });
-        }
-
-        // Create new product report with updated schema
         const report = new ProductReport({
             product: productId,
             reporter: reporter._id,
-            reason,
-            description,
-            status: 'pending',
-            createdAt: new Date()
+            reason: reason,
+            description: description || '', // Provide default empty string if description is undefined
         });
 
         await report.save();
-
-        // Create notification for admin
-        const admins = await User.find({ role: 'admin' });
-        for (const admin of admins) {
-            await Notification.create({
-                userId: admin._id,
-                type: 'product_reported',
-                message: `New product report for "${product.name}"`,
-                productId: product._id,
-                read: false
-            });
-        }
-
-        res.json({ success: true, message: "Product reported successfully" });
+        res.json({ success: true, message: 'Report submitted successfully' });
     } catch (err) {
-        console.error("Error reporting product:", err);
-        res.status(500).json({ success: false, error: "Error reporting product" });
+        console.error('Error reporting product:', err);
+        res.status(500).json({ 
+            success: false, 
+            error: err.message || 'Error submitting report' 
+        });
     }
 });
 
@@ -1304,14 +1625,18 @@ app.post("/admin/delete-product/:productId", isAuthenticated, isAuthorized("admi
 
 // Update the make-offer route to handle both new and existing offers
 app.post("/make-offer", isAuthenticated, async (req, res) => {
-    const { productId, amount } = req.body;
-    const buyer = await User.findOne({ email: req.session.userEmail });
-
     try {
-        const product = await Product.findById(productId);
-        if (!product) {
-            return res.status(404).json({ success: false, error: "Product not found" });
-        }
+        const { productId, amount } = req.body;
+        const buyer = await User.findOne({ email: req.session.userEmail });
+        const product = await Product.findById(productId).populate('seller');
+
+        // Create notification for seller
+        await createNotification(
+            product.seller._id,
+            'offer_received',
+            `${buyer.userName} made an offer of ₹${amount} for your product "${product.name}"`,
+            productId
+        );
 
         // Check for existing offer from this buyer
         const existingOfferIndex = product.offerRequests.findIndex(
@@ -1332,14 +1657,6 @@ app.post("/make-offer", isAuthenticated, async (req, res) => {
 
         await product.save();
 
-        // Create notification for seller
-        await Notification.create({
-            userId: product.seller,
-            type: 'offer_received',
-            message: `New offer of ₹${amount} received for ${product.name}`,
-            productId: product._id
-        });
-
         res.json({ success: true, message: "Offer sent successfully" });
     } catch (err) {
         console.error("Error making/updating offer:", err);
@@ -1354,52 +1671,55 @@ app.post("/respond-to-offer/:offerId", isAuthenticated, async (req, res) => {
     session.startTransaction();
 
     try {
-        const offer = await Offer.findById(offerId).populate('productId');
-        if (!offer) {
-            await session.abortTransaction();
-            return res.status(404).json({ success: false, error: "Offer not found" });
+        const product = await Product.findOne({
+            'offerRequests._id': offerId
+        }).populate('offerRequests.buyer');
+
+        if (!product) {
+            throw new Error('Offer not found');
         }
 
-        // Verify the current user is the seller
-        const seller = req.session.userEmail ? (await User.findOne({ email: req.session.userEmail })).userName : '';
-        if (offer.seller !== seller) {
-            await session.abortTransaction();
-            return res.status(403).json({ success: false, error: "Unauthorized" });
-        }
-
-        offer.status = accept ? 'accepted' : 'rejected';
-        await offer.save({ session });
-
+        const offer = product.offerRequests.id(offerId);
+        const buyer = await User.findById(offer.buyer);
+        
         if (accept) {
-            // Delete the product and related data
-            await Product.findByIdAndDelete(offer.productId._id).session(session);
-            await Report.deleteMany({ productId: offer.productId._id }).session(session);
-            await Conversation.deleteMany({ product: offer.productId._id }).session(session);
+            // Handle acceptance
+            product.status = 'sold';
+            product.buyer = offer.buyer;
+            product.transactionDate = new Date();
+            product.transactionPrice = offer.offerPrice;
             
-            // Delete other pending offers for this product
-            await Offer.deleteMany({ 
-                productId: offer.productId._id, 
-                _id: { $ne: offerId },
-                status: 'pending'
-            }).session(session);
+            // Create a notification for the buyer
+            await Notification.create({
+                userId: offer.buyer,
+                type: 'offer_accepted',
+                message: `Your offer of ₹${offer.offerPrice} for ${product.name} has been accepted.`,
+                productId: product._id
+            });
+
+            // Clear all offers
+            product.offerRequests = [];
+        } else {
+            // Handle rejection - remove this specific offer
+            product.offerRequests.pull(offerId);
+            
+            // Create a notification for the buyer
+            await Notification.create({
+                userId: offer.buyer,
+                type: 'offer_rejected',
+                message: `Your offer of ₹${offer.offerPrice} for ${product.name} has been rejected.`,
+                productId: product._id
+            });
         }
 
-        // Create notification for the buyer
-        await Notification.create({
-            userId: offer.buyer,
-            type: accept ? 'offer_accepted' : 'offer_rejected',
-            message: accept ? 
-                `Your offer of ₹${offer.amount} for ${offer.productId.name} was accepted` :
-                `Your offer of ₹${offer.amount} for ${offer.productId.name} was rejected`,
-            productId: offer.productId._id
-        });
-
+        await product.save({ session });
         await session.commitTransaction();
-        res.json({ success: true, message: `Offer ${accept ? 'accepted' : 'rejected'} successfully` });
+
+        res.json({ success: true });
     } catch (err) {
         await session.abortTransaction();
         console.error("Error responding to offer:", err);
-        res.status(500).json({ success: false, error: "Error responding to offer" });
+        res.status(500).json({ success: false, error: err.message });
     } finally {
         session.endSession();
     }
@@ -1638,17 +1958,50 @@ app.get('/messages', isAuthenticated, async (req, res) => {
 app.get('/notifications', isAuthenticated, async (req, res) => {
     try {
         const user = await User.findOne({ email: req.session.userEmail });
-        const notifications = await Notification.find({ userId: user._id })
-            .populate('productId')
-            .sort({ createdAt: -1 });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
 
-        res.render('notifications', { 
-            userName: user.userName, 
-            notifications 
-        });
+        const notifications = await Notification.find({ userId: user._id })
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .lean(); // Use lean() for better performance
+
+        console.log('Sending notifications:', notifications);
+        res.json(notifications);
     } catch (err) {
-        console.error("Error fetching notifications:", err);
-        res.status(500).send("Server error");
+        console.error('Error fetching notifications:', err);
+        res.status(500).json({ error: 'Error fetching notifications' });
+    }
+});
+
+// Mark single notification as read
+app.post('/notifications/:id/read', isAuthenticated, async (req, res) => {
+    try {
+        await Notification.findByIdAndUpdate(req.params.id, { read: true });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Error updating notification' });
+    }
+});
+
+// Update the mark all as read route
+app.post('/notifications/mark-all-read', isAuthenticated, async (req, res) => {
+    try {
+        const user = await User.findOne({ email: req.session.userEmail });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        await Notification.updateMany(
+            { userId: user._id },
+            { $set: { read: true } }
+        );
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error marking notifications as read:', err);
+        res.status(500).json({ error: 'Error updating notifications' });
     }
 });
 
@@ -1772,35 +2125,66 @@ app.post("/verify-email", async (req, res) => {
 });
 
 // Port opening
-server.listen(3000, function() {
-    console.log("Server started on port 3000");
+server.listen(3001, function() {
+    console.log("Server started on port 3001");
 });
 
 // Update donation collection route
 app.post("/donation/:id/collect", isAuthenticated, async (req, res) => {
     try {
-        const donation = await Donation.findById(req.params.id);
-        const collector = await User.findOne({ email: req.session.userEmail });
+        const donationId = req.params.id;
+        const user = await User.findOne({ email: req.session.userEmail });
 
-        if (!donation || donation.status !== 'available') {
-            return res.status(400).json({ success: false, message: "Donation not available" });
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User not found' });
         }
 
+        const donation = await Donation.findById(donationId).populate('donatedBy');
+        if (!donation) {
+            return res.status(404).json({ success: false, error: 'Donation not found' });
+        }
+
+        if (donation.status !== 'available') {
+            return res.status(400).json({ success: false, error: 'Donation is not available' });
+        }
+
+        // Update donation status
         donation.status = 'collected';
-        donation.collectedBy = collector._id;
+        donation.collectedBy = user._id;
         await donation.save();
 
-        // Create notification for donor
-        await Notification.create({
-            userId: donation.donor,
+        // Create notification for the donor
+        await createNotification({
+            userId: donation.donatedBy._id,
             type: 'donation_collected',
-            message: `Your donation "${donation.name}" has been collected by ${collector.userName}`
+            message: `Your donation "${donation.name}" has been collected by ${user.userName}`,
+            productId: donationId
         });
 
-        res.json({ success: true, message: "Donation collected successfully" });
+        res.json({ success: true });
     } catch (err) {
         console.error("Error collecting donation:", err);
-        res.status(500).json({ success: false, message: "Server error" });
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Add route for viewing collected donations
+app.get("/collected-donations", isAuthenticated, async (req, res) => {
+    try {
+        const user = await User.findOne({ email: req.session.userEmail });
+        
+        const collectedDonations = await Donation.find({
+            collectedBy: user._id,
+            status: 'collected'
+        }).populate('donatedBy', 'userName email phone address');  // Add fields to populate
+
+        res.render("collected-donations", { 
+            donations: collectedDonations,
+            userName: user.userName 
+        });
+    } catch (err) {
+        console.error("Error fetching collected donations:", err);
+        res.status(500).send("Error fetching collected donations");
     }
 });
 
@@ -1868,90 +2252,173 @@ app.get("/all-products", async (req, res) => {
 app.get('/messages/:conversationId', isAuthenticated, async (req, res) => {
     try {
         const conversation = await Conversation.findById(req.params.conversationId)
+            .populate('participants', 'userName')
             .populate('messages.sender', 'userName');
+
         if (!conversation) {
             return res.status(404).json({ error: 'Conversation not found' });
         }
 
-        // Gather all product ObjectIds from messages.replyTo where type === 'product'
-        const productIds = conversation.messages
-            .filter(msg => msg.replyTo && msg.replyTo.type === 'product' && typeof msg.replyTo.id === 'object')
-            .map(msg => msg.replyTo.id);
-
-        // Fetch all referenced products in one go
-        let productsMap = {};
-        if (productIds.length > 0) {
-            const products = await Product.find({ _id: { $in: productIds } }, 'name price images');
-            productsMap = products.reduce((acc, prod) => {
-                acc[prod._id.toString()] = prod;
-                return acc;
-            }, {});
-        }
-
-        // Helper: find message by messageId
-        function findMessageById(mid) {
-            return conversation.messages.find(m => m.messageId === mid);
-        }
-
-        // Build messages array for frontend
-        const messages = conversation.messages.map(msg => {
-            let replyTo = null;
-            if (msg.replyTo) {
-                if (msg.replyTo.type === 'product' && typeof msg.replyTo.id === 'object') {
-                    const prod = productsMap[msg.replyTo.id.toString()];
-                    if (prod) {
-                        replyTo = {
-                            type: 'product',
-                            id: prod._id,
-                            name: prod.name,
-                            price: prod.price
-                        };
-                    }
-                } else if (msg.replyTo.type === 'message') {
-                    // Find the original message being replied to
-                    const originalMsg = findMessageById(msg.replyTo.id);
-                    if (originalMsg) {
-                        // If the original message is a reply to a product, show product preview
-                        if (originalMsg.replyTo && originalMsg.replyTo.type === 'product' && typeof originalMsg.replyTo.id === 'object') {
-                            const prod = productsMap[originalMsg.replyTo.id.toString()];
-                            if (prod) {
-                                replyTo = {
-                                    type: 'product',
-                                    id: prod._id,
-                                    name: prod.name,
-                                    price: prod.price
-                                };
-                            }
-                        } else {
-                            // Otherwise, show the original message text as preview
-                            replyTo = {
-                                type: 'message',
-                                id: originalMsg.messageId,
-                                text: originalMsg.text,
-                                sender: originalMsg.sender && originalMsg.sender.userName ? originalMsg.sender.userName : undefined
-                            };
-                        }
-                    } else {
-                        // fallback: just show messageId
-                        replyTo = {
-                            type: 'message',
-                            id: msg.replyTo.id
-                        };
-                    }
+        // Map messages to include all necessary fields and reply data
+        const messages = await Promise.all(conversation.messages.map(async msg => {
+            let replyToData = null;
+            
+            if (msg.replyTo && msg.replyTo.id) {
+                // Find the replied-to message within the conversation
+                const repliedMessage = conversation.messages.find(m => 
+                    m.messageId.toString() === msg.replyTo.id.toString()
+                );
+                
+                if (repliedMessage) {
+                    const replySender = await User.findById(repliedMessage.sender);
+                    replyToData = {
+                        id: msg.replyTo.id,
+                        type: msg.replyTo.type,
+                        text: repliedMessage.text,
+                        sender: replySender.userName
+                    };
                 }
             }
+
             return {
                 messageId: msg.messageId,
-                text: msg.text,
                 sender: msg.sender.userName,
+                text: msg.text,
                 createdAt: msg.createdAt,
-                replyTo
+                replyTo: replyToData
             };
-        });
+        }));
 
         res.json({ messages });
     } catch (err) {
         console.error('Error loading messages:', err);
         res.status(500).json({ error: 'Error loading messages' });
+    }
+});
+
+// Update message route
+app.post('/messages/send', isAuthenticated, async (req, res) => {
+    try {
+        const { conversationId, message, replyTo } = req.body;
+        const sender = await User.findOne({ email: req.session.userEmail });
+
+        const conversation = await Conversation.findById(conversationId);
+        if (!conversation) {
+            return res.status(404).json({ error: 'Conversation not found' });
+        }
+
+        const newMessage = {
+            messageId: conversation.nextMessageId,
+            sender: sender._id,
+            text: message,
+            replyTo: replyTo ? {
+                id: replyTo.id,
+                type: replyTo.type,
+                text: replyTo.text,
+                sender: replyTo.sender
+            } : null,
+            createdAt: new Date()
+        };
+
+        conversation.messages.push(newMessage);
+        conversation.nextMessageId += 1;
+        await conversation.save();
+
+        // Emit message through socket.io
+        io.to(`conversation_${conversationId}`).emit('message', {
+            ...newMessage,
+            sender: sender.userName
+        });
+
+        res.json({ success: true, message: newMessage });
+    } catch (err) {
+        console.error('Error sending message:', err);
+        res.status(500).json({ error: 'Error sending message' });
+    }
+});
+
+// Add route for viewing user's purchases
+app.get("/purchases", isAuthenticated, async (req, res) => {
+    try {
+        const user = await User.findOne({ email: req.session.userEmail });
+        
+        // Find all products where this user is the buyer
+        const purchases = await Product.find({
+            buyer: user._id,
+            status: 'sold'
+        }).populate('seller', 'userName email phone address');
+
+        res.render("purchases", { 
+            purchases: purchases,
+            userName: user.userName 
+        });
+    } catch (err) {
+        console.error("Error fetching purchases:", err);
+        res.status(500).send("Error fetching purchases");
+    }
+});
+
+// Update admin product report handling route
+app.post("/admin/resolve-product-report/:reportId", isAuthenticated, isAuthorized("admin"), async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const { action, remarks, productId, userId } = req.body;
+        const report = await ProductReport.findById(req.params.reportId);
+        
+        if (!report) {
+            throw new Error('Report not found');
+        }
+
+        // Common updates
+        report.status = 'resolved';
+        report.adminNotes = remarks;
+        report.reviewedAt = new Date();
+
+        // Handle different actions
+        switch (action) {
+            case 'block_user':
+                const user = await User.findById(userId);
+                user.isBlocked = true;
+                user.blockedAt = new Date();
+                user.blockedReason = remarks;
+                await user.save({ session });
+                break;
+
+            case 'warn_user':
+                await createNotification(
+                    userId,
+                    'admin_warning',
+                    `Warning from admin: ${remarks}`,
+                    productId
+                );
+                break;
+
+            case 'delete_product':
+                await Product.findByIdAndDelete(productId, { session });
+                break;
+
+            case 'resolve_only':
+                // No additional action needed
+                break;
+
+            default:
+                throw new Error('Invalid action');
+        }
+
+        await report.save({ session });
+        await session.commitTransaction();
+
+        res.json({ success: true });
+    } catch (err) {
+        await session.abortTransaction();
+        console.error('Error resolving report:', err);
+        res.status(500).json({ 
+            success: false, 
+            error: err.message || 'Error resolving report' 
+        });
+    } finally {
+        session.endSession();
     }
 });

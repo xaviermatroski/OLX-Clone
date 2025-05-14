@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Collected Donations - IIT Ropar Marketplace</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <a class="navbar-brand" href="/volunteer/<%= userName %>">
+            <img src="/images/iitropar_logo.jpg" alt="IIT Ropar Logo" height="50">
+            IIT Ropar Volunteer Portal
+        </a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="/volunteer/<%= userName %>">
+                        <i class="fas fa-home"></i> Home
+                    </a>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" data-toggle="dropdown">
+                        <i class="fas fa-user"></i> Profile
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right">
+                        <a class="dropdown-item" href="/profile/<%= userName %>">View Profile</a>
+                        <a class="dropdown-item" href="/collected-donations">My Collected Donations</a>
+                        <div class="dropdown-divider"></div>
+                        <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
+                        <a class="dropdown-item" href="#" onclick="document.getElementById('logout-form').submit();">Logout</a>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2 class="text-center mb-4">My Collected Donations</h2>
+        <div class="row">
+            <% if (donations && donations.length > 0) { %>
+                <% donations.forEach(function(donation) { %>
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100" 
+                             data-donation-id="<%= donation._id %>"
+                             data-donor="<%= JSON.stringify({
+                                 userName: donation.donatedBy.userName,
+                                 email: donation.donatedBy.email,
+                                 phone: donation.donatedBy.phone || 'Not provided',
+                                 address: {
+                                     street: donation.donatedBy.address?.street || '',
+                                     city: donation.donatedBy.address?.city || '',
+                                     state: donation.donatedBy.address?.state || '',
+                                     zipCode: donation.donatedBy.address?.zipCode || ''
+                                 }
+                             }).replace(/"/g, '&quot;') %>"
+                             data-donation-date="<%= donation.createdAt %>">
+                            <div class="product-image-wrapper">
+                                <div class="product-image-container card-img-container">
+                                    <img src="/donation-image/<%= donation._id %>/0" alt="Donation Image" class="img-fluid">
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <h5 class="card-title"><%= donation.name %></h5>
+                                <p class="card-text text-muted"><%= donation.description %></p>
+                                <p class="text-info mb-0">
+                                    <small>
+                                        <i class="fas fa-user"></i> Donated by: <%= donation.donatedBy.userName %>
+                                        <a href="#" onclick="showDonorDetails('<%= donation._id %>')" class="ml-2">
+                                            <small class="text-primary">View Donor Details</small>
+                                        </a>
+                                    </small>
+                                </p>
+                                <p class="text-success mt-2">
+                                    <small>
+                                        <i class="fas fa-calendar"></i> Collected on: 
+                                        <%= new Date(donation.updatedAt).toLocaleDateString() %>
+                                    </small>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                <% }); %>
+            <% } else { %>
+                <div class="col-12">
+                    <div class="alert alert-info text-center">
+                        <i class="fas fa-info-circle"></i> You haven't collected any donations yet.
+                    </div>
+                </div>
+            <% } %>
+        </div>
+    </div>
+
+    <footer class="footer bg-dark text-white py-3 mt-auto">
+        <div class="container text-center">
+            <p>&copy; 2025 IIT Ropar Marketplace. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Donor Details Modal -->
+    <div class="modal fade" id="donorDetailsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Donor Details</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="donor-info">
+                        <div class="mb-3">
+                            <h6 class="font-weight-bold">Contact Information</h6>
+                            <p><i class="fas fa-user mr-2"></i><strong>Name:</strong> <span id="donorName"></span></p>
+                            <p><i class="fas fa-envelope mr-2"></i><strong>Email:</strong> <span id="donorEmail"></span></p>
+                            <p><i class="fas fa-phone mr-2"></i><strong>Phone:</strong> <span id="donorPhone"></span></p>
+                        </div>
+                        <div class="mb-3">
+                            <h6 class="font-weight-bold">Address</h6>
+                            <p><i class="fas fa-map-marker-alt mr-2"></i><span id="donorAddress"></span></p>
+                        </div>
+                        <div class="mb-3">
+                            <h6 class="font-weight-bold">Donation Details</h6>
+                            <p><i class="fas fa-calendar mr-2"></i><strong>Date:</strong> <span id="donationDate"></span></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="startChat()">
+                        <i class="fas fa-comment"></i> Start Chat
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+    function showDonorDetails(donationId) {
+        try {
+            const donationCard = document.querySelector(`[data-donation-id="${donationId}"]`);
+            const donorData = JSON.parse(donationCard.dataset.donor.replace(/&quot;/g, '"'));
+            
+            // Debug log
+            console.log('Donor data:', donorData);
+            
+            document.getElementById('donorName').textContent = donorData.userName || 'N/A';
+            document.getElementById('donorEmail').textContent = donorData.email || 'N/A';
+            document.getElementById('donorPhone').textContent = donorData.phone || 'N/A';
+            document.getElementById('donorAddress').textContent = formatAddress(donorData.address) || 'N/A';
+            document.getElementById('donationDate').textContent = new Date(donationCard.dataset.donationDate).toLocaleString();
+            
+            document.getElementById('donorDetailsModal').dataset.donorName = donorData.userName;
+            
+            $('#donorDetailsModal').modal('show');
+        } catch (error) {
+            console.error('Error showing donor details:', error);
+            alert('Error displaying donor details');
+        }
+    }
+
+    function formatAddress(address) {
+        if (!address) return 'No address provided';
+        
+        const parts = [];
+        if (address.street) parts.push(address.street);
+        if (address.city) parts.push(address.city);
+        if (address.state) parts.push(address.state);
+        if (address.zipCode) parts.push(address.zipCode);
+        
+        return parts.length > 0 ? parts.join(', ') : 'No address provided';
+    }
+
+    function startChat() {
+        const donorName = document.getElementById('donorDetailsModal').dataset.donorName;
+        window.location.href = `/messages?seller=${encodeURIComponent(donorName)}`;
+    }
+    </script>
+</body>
+</html>

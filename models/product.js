@@ -27,7 +27,7 @@ const ProductSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['available', 'sold', 'reserved'],
+    enum: ['available', 'sold', 'reserved', 'closed'],
     default: 'available'
   },
   seller: {

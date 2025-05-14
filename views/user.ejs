@@ -34,11 +34,33 @@
                         </div>
                     </form>
                 </li>
-                <!-- Removed filter dropdown -->
-                <li class="nav-item">
-                    <a class="nav-link" href="/user/<%= userName %>/sell">
-                        <i class="fas fa-plus"></i> Sell
+                <!-- Add Category Filter Dropdown -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="categoryDropdown" role="button" data-toggle="dropdown">
+                        <i class="fas fa-filter"></i> Filter
                     </a>
+                    <div class="dropdown-menu">
+                        <a class="dropdown-item" href="#" onclick="filterProducts('all')">All Products</a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="#" onclick="filterProducts('electronics')">Electronics</a>
+                        <a class="dropdown-item" href="#" onclick="filterProducts('furniture')">Furniture</a>
+                        <a class="dropdown-item" href="#" onclick="filterProducts('books')">Books</a>
+                        <a class="dropdown-item" href="#" onclick="filterProducts('clothing')">Clothing</a>
+                        <a class="dropdown-item" href="#" onclick="filterProducts('others')">Others</a>
+                    </div>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="sellDropdown" role="button" data-toggle="dropdown">
+                        <i class="fas fa-plus"></i> List Item
+                    </a>
+                    <div class="dropdown-menu">
+                        <a class="dropdown-item" href="/user/<%= userName %>/sell">
+                            <i class="fas fa-tag"></i> Sell Item
+                        </a>
+                        <a class="dropdown-item" href="/volunteer/<%= userName %>/donate">
+                            <i class="fas fa-hand-holding-heart"></i> Donate Item
+                        </a>
+                    </div>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link position-relative" href="/messages">
@@ -47,12 +69,30 @@
                     </a>
                 </li>
                 <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle position-relative" href="#" id="notificationDropdown" role="button" data-toggle="dropdown">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge badge-danger notification-badge" id="notificationCount" style="display: none;"></span>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right notification-menu" aria-labelledby="notificationDropdown" style="width: 300px; max-height: 400px; overflow-y: auto;">
+                        <h6 class="dropdown-header">Notifications</h6>
+                        <div id="notificationList">
+                            <!-- Notifications will be populated here -->
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item text-center text-muted" href="#" onclick="markAllAsRead()">
+                            Mark all as read
+                        </a>
+                    </div>
+                </li>
+                <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                         <i class="fas fa-user"></i> Profile
                     </a>
                     <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
                         <a class="dropdown-item" href="/profile/<%= userName %>">View Profile</a>
                         <a class="dropdown-item" href="/orders">My Orders</a>
+                        <a class="dropdown-item" href="/my-donations">My Donations</a>
+                        <a class="dropdown-item" href="/purchases">My Purchases</a>
                         <div class="dropdown-divider"></div>
                         <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
                         <a class="dropdown-item" href="#" onclick="document.getElementById('logout-form').submit();">Logout</a>
@@ -65,33 +105,33 @@
     <!-- Update the products section -->
     <section id="products" class="py-3">
         <div class="container">
-            <h2 class="text-center mb-4 font-weight-bold">Available Products</h2>
+            <h2 class="text-center mb-4">Available Products</h2>
             <div class="row" id="productsContainer">
-                <% products.forEach(function(product) { %>
-                <div class="col-md-4 product-card" data-category="<%= product.category %>">
-                    <div class="card mb-4 shadow-sm">
-                        <div class="product-image-wrapper">
-                            <div class="product-image-container card-img-container">
-                                <img src="/image/<%= product._id %>/0" alt="Product Image">
+                <% products.filter(product => product.status !== 'closed').forEach(function(product) { %>
+                    <div class="col-md-4 product-card" data-category="<%= product.category %>">
+                        <div class="card mb-4 shadow-sm">
+                            <div class="product-image-wrapper">
+                                <div class="product-image-container card-img-container">
+                                    <img src="/image/<%= product._id %>/0" alt="Product Image">
+                                </div>
                             </div>
-                        </div>
-                        <div class="card-body">
-                            <h5 class="card-title font-weight-bold"><%= product.name %></h5>
-                            <p class="card-text text-muted"><%= product.description %></p>
-                            <div class="badge badge-secondary mb-2"><%= product.category %></div>
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span class="price">₹<%= product.price %></span>
-                                <span class="badge badge-<%= 
-                                    product.status === 'available' ? 'success' : 
-                                    product.status === 'reserved' ? 'warning' : 'danger' 
-                                %>">
-                                    <%= product.status %>
-                                </span>
+                            <div class="card-body">
+                                <h5 class="card-title font-weight-bold"><%= product.name %></h5>
+                                <p class="card-text text-muted"><%= product.description %></p>
+                                <div class="badge badge-secondary mb-2"><%= product.category %></div>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="price">₹<%= product.price %></span>
+                                    <span class="badge badge-<%= 
+                                        product.status === 'available' ? 'success' : 
+                                        product.status === 'reserved' ? 'warning' : 'danger' 
+                                    %>">
+                                        <%= product.status %>
+                                    </span>
+                                </div>
+                                <a href="/product/<%= product._id %>" class="btn custom-btn login-btn mt-2">View Details</a>
                             </div>
-                            <a href="/product/<%= product._id %>" class="btn custom-btn login-btn mt-2">View Details</a>
                         </div>
                     </div>
-                </div>
                 <% }); %>
             </div>
         </div>
@@ -141,31 +181,252 @@
                 alert('Error sending message.');
             });
         });
+
+        function filterProducts(category) {
+            const container = document.getElementById('productsContainer');
+            const productCards = container.getElementsByClassName('product-card');
+
+            Array.from(productCards).forEach(card => {
+                if (category === 'all' || card.dataset.category === category) {
+                    card.style.display = 'block';
+                    card.style.opacity = '0';
+                    setTimeout(() => {
+                        card.style.opacity = '1';
+                    }, 50);
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        // Add smooth transitions for filtering
+        document.addEventListener('DOMContentLoaded', function() {
+            const productCards = document.getElementsByClassName('product-card');
+            Array.from(productCards).forEach(card => {
+                card.style.transition = 'opacity 0.3s ease-in-out';
+            });
+        });
+
+        // Add these new functions for notifications
+        function loadNotifications() {
+            console.log('Loading notifications...'); // Debug log
+            fetch('/notifications')
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Received notifications:', data); // Debug log
+                    updateNotificationsUI(data);
+                })
+                .catch(error => {
+                    console.error('Error loading notifications:', error);
+                });
+        }
+
+        function getNotificationIcon(type) {
+            const icons = {
+                'offer_received': '<i class="fas fa-handshake text-primary mr-2"></i>',
+                'offer_accepted': '<i class="fas fa-check-circle text-success mr-2"></i>',
+                'offer_rejected': '<i class="fas fa-times-circle text-danger mr-2"></i>',
+                'product_updated': '<i class="fas fa-sync text-info mr-2"></i>'
+            };
+            return icons[type] || '<i class="fas fa-bell text-secondary mr-2"></i>';
+        }
+
+        function handleNotificationClick(notificationId, type, productId) {
+            // Mark notification as read
+            fetch(`/notifications/${notificationId}/read`, { method: 'POST' })
+                .then(() => {
+                    // Redirect based on notification type
+                    if (productId) {
+                        window.location.href = `/product/${productId}`;
+                    }
+                })
+                .catch(error => console.error('Error marking notification as read:', error));
+        }
+
+        function markAllAsRead() {
+            fetch('/notifications/mark-all-read', { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Clear the notifications list
+                    const notificationList = document.getElementById('notificationList');
+                    notificationList.innerHTML = '<div class="empty-notifications">No notifications</div>';
+                    
+                    // Hide the notification count
+                    const notificationCount = document.getElementById('notificationCount');
+                    notificationCount.style.display = 'none';
+                    
+                    // Close the dropdown
+                    $('#notificationDropdown').dropdown('hide');
+                } else {
+                    throw new Error(data.error || 'Error marking notifications as read');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error marking notifications as read');
+            });
+        }
+
+        function updateNotificationsUI(notifications) {
+            const notificationList = document.getElementById('notificationList');
+            const notificationCount = document.getElementById('notificationCount');
+            const unreadCount = notifications.filter(n => !n.read).length;
+
+            // Update notification count badge
+            if (unreadCount > 0) {
+                notificationCount.style.display = 'block';
+                notificationCount.textContent = unreadCount;
+            } else {
+                notificationCount.style.display = 'none';
+            }
+
+            // Update notification list
+            notificationList.innerHTML = notifications.length ? 
+                notifications.map(notification => `
+                    <div class="notification-item ${notification.read ? '' : 'unread'}" 
+                         onclick="handleNotificationClick('${notification._id}', '${notification.type}', '${notification.productId || ''}')">
+                        <div class="notification-content">
+                            ${getNotificationIcon(notification.type)}
+                            ${notification.message}
+                        </div>
+                        <small class="notification-time">
+                            ${new Date(notification.createdAt).toLocaleString()}
+                        </small>
+                    </div>
+                `).join('') : 
+                '<div class="empty-notifications">No notifications</div>';
+        }
+
+        // Add notification loading to DOMContentLoaded
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Document ready, loading notifications...');
+            loadNotifications();
+            // Set up periodic refresh of notifications
+            setInterval(loadNotifications, 30000); // Refresh every 30 seconds
+        });
     </script>
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        const notificationDot = document.querySelector('.notification-dot');
-        const currentUser = '<%= userName %>'; // Changed from user_name to userName
+        let currentUser = '<%= userName %>';
 
-        // Connect user to socket
-        socket.emit('userConnected', currentUser);
-
-        // Check for unread messages on page load
-        fetch('/api/unread-messages')
-            .then(response => response.json())
-            .then(data => {
-                if (data.count > 0) {
-                    notificationDot.classList.remove('d-none');
-                }
-            });
-
-        // Listen for new messages
-        socket.on('message', (message) => {
-            if (message.sender !== currentUser) {
-                notificationDot.classList.remove('d-none');
-            }
+        // Socket connection handler
+        socket.on('connect', () => {
+            console.log('Connected to Socket.IO');
+            socket.emit('userConnected', currentUser);
         });
+
+        // Load notifications on page load and dropdown click
+        document.addEventListener('DOMContentLoaded', function() {
+            loadNotifications(); // Initial load
+            setInterval(loadNotifications, 30000); // Refresh every 30 seconds
+
+            // Add click handler for notification dropdown
+            document.getElementById('notificationDropdown').addEventListener('click', function() {
+                loadNotifications();
+            });
+        });
+
+        // Listen for new notifications
+        socket.on('new_notification', function(notification) {
+            console.log('New notification received:', notification);
+            loadNotifications(); // Reload all notifications
+            showNotificationToast(notification);
+        });
+
+        function showNotificationToast(notification) {
+            // Create and show a toast notification
+            const toast = document.createElement('div');
+            toast.className = 'toast show';
+            toast.setAttribute('role', 'alert');
+            toast.setAttribute('aria-live', 'assertive');
+            toast.setAttribute('aria-atomic', 'true');
+            toast.style.position = 'fixed';
+            toast.style.top = '20px';
+            toast.style.right = '20px';
+            toast.style.zIndex = '1050';
+            
+            toast.innerHTML = `
+                <div class="toast-header">
+                    <strong class="mr-auto">New Notification</strong>
+                    <button type="button" class="ml-2 mb-1 close" data-dismiss="toast">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="toast-body">
+                    ${notification.message}
+                </div>
+            `;
+            
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, 5000);
+        }
     </script>
+
+    <style>
+        .product-card {
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: 0;
+            right: 0;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.4rem;
+        }
+        
+        .notification-item {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #eee;
+            white-space: normal;
+            cursor: pointer;
+        }
+        
+        .notification-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .notification-item.unread {
+            background-color: #e8f4ff;
+        }
+        
+        .notification-time {
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+        
+        .notification-menu {
+            padding: 0;
+        }
+
+        .notification-content {
+            margin-bottom: 0.25rem;
+        }
+        
+        .empty-notifications {
+            padding: 1rem;
+            text-align: center;
+            color: #6c757d;
+        }
+
+        .notification-icon {
+            margin-right: 0.5rem;
+            width: 20px;
+            display: inline-block;
+            text-align: center;
+        }
+    </style>
 </body>
 </html>

@@ -195,8 +195,27 @@
         const userName = '<%= userName %>';
         let currentConversationId = '<%= currentConversation ? currentConversation._id : "" %>';
 
-        // Connect and identify the user to Socket.IO server
-        socket.emit('userConnected', userName);
+        // Add these variables at the top with other declarations
+        const urlParams = new URLSearchParams(window.location.search);
+        const seller = urlParams.get('seller');
+        const productName = urlParams.get('productName');
+
+        // Auto-load conversation if seller parameter exists
+        if (seller) {
+            const conversation = Array.from(document.querySelectorAll('.conversation-item')).find(item => {
+                const userName = item.querySelector('h6').textContent;
+                return userName === seller;
+            });
+
+            if (conversation) {
+                conversation.click();
+            }
+        }
+
+        // Clear the session storage flag when leaving the page
+        window.addEventListener('beforeunload', () => {
+            sessionStorage.removeItem('initialMessageSent');
+        });
 
         // Clear unread messages when opening conversation
         if (currentConversationId) {
@@ -247,6 +266,8 @@
         });
 
         function loadConversation(conversationId, otherUserName) {
+            currentConversationId = conversationId;
+            
             // Show loading state
             const messagesContainer = document.getElementById('chatMessages');
             messagesContainer.innerHTML = '<div class="text-center p-4"><i class="fas fa-spinner fa-spin"></i> Loading messages...</div>';
@@ -257,14 +278,12 @@
             
             // Show the message form
             messageForm.classList.remove('d-none');
-            
-            // Set current conversation ID
-            currentConversationId = conversationId;
 
             // Load messages
             fetch(`/messages/${conversationId}`)
                 .then(response => response.json())
                 .then(data => {
+                    console.log('Received data:', data); // Debug log
                     messagesContainer.innerHTML = '';
                     
                     if (data.error) {
@@ -272,7 +291,15 @@
                     }
 
                     if (data.messages && data.messages.length > 0) {
-                        data.messages.forEach(message => appendMessage(message));
+                        data.messages.forEach(message => {
+                            appendMessage({
+                                messageId: message.messageId,
+                                sender: message.sender,
+                                text: message.text,
+                                createdAt: new Date(message.createdAt),
+                                replyTo: message.replyTo
+                            });
+                        });
                         scrollToBottom();
                     } else {
                         messagesContainer.innerHTML = '<div class="text-center p-4 text-muted">No messages yet</div>';
@@ -301,38 +328,22 @@
             messageDiv.className = `message ${isOwnMessage ? 'message-sent' : 'message-received'}`;
             messageDiv.id = `message-${message.messageId}`;
 
-            // Build message content with reply button inside .message-content
             let messageContent = `
-                <div class="message-content" style="position:relative;">
-                    <button class="reply-button" type="button"
-                        onclick="setReplyContext('${message.messageId}', '${escapeHtml(message.sender)}', \`${escapeHtml(message.text)}\`)">
-                        <i class="fas fa-reply"></i>
-                    </button>
+                <div class="message-content">
+                    ${!isOwnMessage ? `<small class="sender-name">${message.sender}</small>` : ''}
             `;
 
             // Add reply preview if message is a reply
-            if (message.replyTo) {
-                if (message.replyTo.type === 'message') {
-                    messageContent += `
-                        <div class="replied-message" onclick="highlightMessage('message-${message.replyTo.id}')">
-                            <small>
-                                <i class="fas fa-reply"></i>
-                                <strong>${escapeHtml(message.replyTo.sender)}</strong>
-                                <span class="text-muted">: ${escapeHtml(message.replyTo.text.substring(0, 50))}${message.replyTo.text && message.replyTo.text.length > 50 ? '...' : ''}</span>
-                            </small>
-                        </div>`;
-                } else if (message.replyTo.type === 'product') {
-                    messageContent += `
-                        <div class="reply-product-preview">
-                            <div class="d-flex align-items-center">
-                                <img src="/image/${message.replyTo.id}/0" alt="Product" class="reply-product-thumbnail">
-                                <div class="ml-2">
-                                    <div class="font-weight-bold">${message.replyTo.name}</div>
-                                    <div class="text-success">₹${message.replyTo.price}</div>
-                                </div>
-                            </div>
-                        </div>`;
-                }
+            if (message.replyTo && message.replyTo.id) {
+                messageContent += `
+                    <div class="replied-message" onclick="highlightMessage('message-${message.replyTo.id}')">
+                        <div class="reply-preview">
+                            <i class="fas fa-reply"></i>
+                            <strong>${escapeHtml(message.replyTo.sender)}</strong>
+                            <span class="reply-text">${escapeHtml(message.replyTo.text)}</span>
+                        </div>
+                    </div>
+                `;
             }
 
             messageContent += `
@@ -340,7 +351,11 @@
                     <small class="message-time">
                         ${new Date(message.createdAt).toLocaleTimeString()}
                     </small>
-                </div>`;
+                    <button class="reply-button" onclick="setReplyContext('${message.messageId}', '${message.sender}', '${escapeHtml(message.text)}')">
+                        <i class="fas fa-reply"></i>
+                    </button>
+                </div>
+            `;
 
             messageDiv.innerHTML = messageContent;
             chatMessages.appendChild(messageDiv);
@@ -365,13 +380,11 @@
         }
 
         function setReplyContext(messageId, sender, text) {
-            if (!messageId || !sender || !text) return;
-            
             replyContext = {
                 id: messageId,
                 type: 'message',
                 sender: sender,
-                text: text.substring(0, 50) + (text.length > 50 ? '...' : '')
+                text: text
             };
             showReplyPreview();
             messageInput.focus();
@@ -546,245 +559,111 @@
     </script>
 
     <style>
-        .conversation-item {
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .conversation-item:hover {
-            background-color: #f8f9fa;
-        }
-        .conversation-item.active {
-            background-color: #e9ecef;
-            border-left: 3px solid #007bff;
+        .chat-box {
+            height: 80vh;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
+            border: none;
+            border-radius: 12px;
+            overflow: hidden;
         }
 
-        .product-preview {
-            margin-top: 5px;
-            padding: 5px;
-            background: rgba(0,0,0,0.05);
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .product-thumbnail {
-            width: 50px;
-            height: 50px;
-            object-fit: cover;
-            border-radius: 4px;
-        }
-
-        .product-info {
-            display: flex;
-            flex-direction: column;
-            font-size: 0.9em;
-        }
-
-        .product-info .price {
-            color: #28a745;
-            font-weight: bold;
-        }
-
-        .message-sent .product-preview {
-            background: rgba(255,255,255,0.1);
-        }
-
-        .product-preview {
-            margin-top: 5px;
-            padding: 5px;
-            background: rgba(0,0,0,0.05);
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        .product-preview:hover {
-            background: rgba(0,0,0,0.1);
-        }
-
-        .product-thumbnail {
-            width: 50px;
-            height: 50px;
-            object-fit: cover;
-            border-radius: 4px;
-        }
-
-        .product-info {
-            display: flex;
-            flex-direction: column;
-            font-size: 0.9em;
-        }
-
-        .product-info .price {
-            color: #28a745;
-            font-weight: bold;
-        }
-
-        .message-sent .product-preview {
-            background: rgba(255,255,255,0.1);
-        }
-
-        .message-sent .product-preview:hover {
-            background: rgba(255,255,255,0.2);
-        }
-
-        .reply-product-preview {
-            display: flex;
-            align-items: center;
+        .chat-messages {
+            height: calc(80vh - 130px);
+            overflow-y: auto;
+            padding: 20px;
             background: #f8f9fa;
-            border-radius: 4px;
-            padding: 4px 8px;
-            cursor: pointer;
-            border: 1px solid #e0e0e0;
-            max-width: 220px;
-            transition: background 0.2s;
-        }
-        .reply-product-preview:hover {
-            background: #e9ecef;
-        }
-        .reply-product-thumbnail {
-            width: 36px;
-            height: 36px;
-            object-fit: cover;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-            background: #fff;
-        }
-        .reply-product-name {
-            font-weight: 500;
-            margin-right: 8px;
-            font-size: 0.95em;
-            color: #333;
-        }
-        .reply-product-price {
-            color: #28a745;
-            font-weight: bold;
-            font-size: 0.95em;
-        }
-
-        .reply-btn {
-            float: right;
-            color: #007bff;
-            cursor: pointer;
-            font-size: 0.95em;
-            margin-left: 8px;
-            opacity: 0.7;
-            transition: opacity 0.2s;
-        }
-        .reply-btn:hover {
-            opacity: 1;
-            color: #0056b3;
-        }
-        .reply-preview-bar {
-            background: #e9ecef;
-            border-left: 4px solid #007bff;
-            padding: 8px 12px;
-            margin-bottom: 6px;
-            border-radius: 4px;
-            font-size: 0.97em;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .reply-preview-label {
-            color: #007bff;
-        }
-        .highlighted-message {
-            animation: highlight-fade 2s;
-            background: #ffe066 !important;
-            transition: background 0.5s;
-        }
-        @keyframes highlight-fade {
-            0% { background: #ffe066; }
-            80% { background: #ffe066; }
-            100% { background: transparent; }
         }
 
         .message {
-            margin-bottom: 1rem;
+            margin-bottom: 20px;
             opacity: 1;
-            transition: background-color 0.3s ease;
+            transition: all 0.3s ease;
+            max-width: 85%;
         }
 
         .message-content {
-            padding: 10px 15px;
-            border-radius: 15px;
+            padding: 12px 16px;
+            border-radius: 18px;
             position: relative;
-            max-width: 80%;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
 
         .message-sent {
-            text-align: right;
-        }
-
-        .message-sent .message-content {
-            background: #007bff;
-            color: white;
             margin-left: auto;
         }
 
+        .message-sent .message-content {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+
         .message-received .message-content {
-            background: #f1f1f1;
+            background: white;
             color: #333;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .message-time {
+            font-size: 0.7rem;
+            margin-top: 5px;
+            opacity: 0.7;
         }
 
         .reply-preview-bar {
             background: #f8f9fa;
-            border-left: 4px solid #007bff;
-            padding: 8px 12px;
-            margin-bottom: 6px;
-            border-radius: 4px;
+            border-left: 4px solid #28a745;
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            border-radius: 8px;
             font-size: 0.9em;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
 
         .replied-message {
-            background: rgba(0,123,255,0.1);
-            border-left: 3px solid #007bff;
+            background: rgba(40, 167, 69, 0.1);
+            border-left: 3px solid #28a745;
             padding: 8px 12px;
             margin-bottom: 8px;
-            border-radius: 4px;
+            border-radius: 8px;
             font-size: 0.9em;
             cursor: pointer;
             transition: all 0.2s ease;
         }
 
         .replied-message:hover {
-            background: rgba(0,123,255,0.15);
+            background: rgba(40, 167, 69, 0.15);
+            transform: translateX(3px);
         }
 
-        .highlighted-message {
-            animation: highlightFade 2.5s ease;
+        .reply-preview {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        @keyframes highlightFade {
-            0%, 50% { 
-                background-color: rgba(255, 224, 102, 0.5);
-                transform: translateY(-2px);
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            }
-            100% { 
-                background-color: transparent;
-                transform: translateY(0);
-                box-shadow: none;
-            }
+        .reply-text {
+            color: #666;
+            font-size: 0.9em;
+            margin-left: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 150px;
         }
 
         .reply-button {
             opacity: 0;
-            transition: opacity 0.2s ease;
+            transition: all 0.2s ease;
             position: absolute;
             top: 5px;
             right: 5px;
-            padding: 2px 8px;
-            border-radius: 12px;
-            background: rgba(0,0,0,0.1);
+            padding: 4px 10px;
+            border-radius: 15px;
+            background: rgba(0, 0, 0, 0.1);
+            border: none;
             color: inherit;
             font-size: 0.8em;
             cursor: pointer;
@@ -794,13 +673,111 @@
             opacity: 1;
         }
 
-        .reply-preview {
-            font-size: 0.85em;
-            opacity: 0.8;
+        .highlighted-message {
+            animation: highlightFade 2s ease;
+            position: relative;
+            z-index: 1;
+        }
+
+        .highlighted-message::before {
+            content: '';
+            position: absolute;
+            left: -100vw;
+            right: -100vw;
+            top: 0;
+            bottom: 0;
+            background-color: rgba(40, 167, 69, 0.2);
+            z-index: -1;
+            border-left: 4px solid #28a745;
+        }
+
+        .conversation-item {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            padding: 15px;
+        }
+
+        .conversation-item:hover {
+            background-color: #f8f9fa;
+            transform: translateX(3px);
+        }
+
+        .conversation-item.active {
+            background-color: #e9ecef;
+            border-left: 3px solid #28a745;
+        }
+
+        .card {
+            border: none;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+        }
+
+        .card-header {
+            background: #f8f9fa;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            padding: 15px 20px;
+        }
+
+        .card-header h5 {
+            color: #333;  /* Darker text color for better visibility */
+            font-weight: 500;
+        }
+
+        /* Add sender name styling */
+        .sender-name {
+            display: block;
+            color: #333;  /* Darker text color */
+            font-weight: 500;
             margin-bottom: 4px;
-            padding: 4px 8px;
-            border-radius: 4px;
-            background: rgba(0,0,0,0.05);
+            font-size: 0.9em;
+        }
+
+        /* Custom Scrollbar */
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Message Input Styling */
+        .message-form .form-control {
+            border-radius: 20px;
+            padding: 10px 20px;
+            border: 1px solid #dee2e6;
+            transition: all 0.3s ease;
+        }
+
+        .message-form .form-control:focus {
+            box-shadow: none;
+            border-color: #28a745;
+        }
+
+        .message-form .btn {
+            border-radius: 20px;
+            padding: 8px 20px;
+            margin-left: 10px;
+        }
+
+        @keyframes highlightFade {
+            0%, 50% {
+                background-color: rgba(40, 167, 69, 0.2);
+            }
+            100% {
+                background-color: transparent;
+            }
         }
     </style>
 </body>
