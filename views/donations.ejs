@@ -13,7 +13,11 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <a class="navbar-brand" href="/volunteer/<%= user_name %>">
             <img src="/images/iitropar_logo.png" alt="IIT Ropar Logo" height="50">
+<<<<<<< HEAD
             𝒞𝒶𝓂𝓅𝓊𝓈𝒦𝒶𝓇𝓉
+=======
+            𝒞𝒶𝓂𝓅𝓊𝓈𝒦𝒶𝓇𝓉 Volunteer Portal
+>>>>>>> database-merging
         </a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
             <span class="navbar-toggler-icon"></span>
@@ -23,6 +27,15 @@
                 <li class="nav-item">
                     <a class="nav-link" href="/volunteer/<%= user_name %>">
                         <i class="fas fa-home"></i> Home
+                    </a>
+                </li>
+                <!-- Add notifications menu item -->
+                <li class="nav-item">
+                    <a class="nav-link position-relative" href="/notifications">
+                        <i class="fas fa-bell"></i>
+                        <% if (typeof unreadNotifications !== 'undefined' && unreadNotifications > 0) { %>
+                            <span class="notification-badge"><%= unreadNotifications %></span>
+                        <% } %>
                     </a>
                 </li>
                 <li class="nav-item dropdown">

@@ -21,7 +21,7 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ml-auto">
                 <li class="nav-item">
-                    <a class="nav-link" href="/user/<%= user_name %>">
+                    <a class="nav-link" href="/user/<%= userName %>">  <!-- Changed from user_name to userName -->
                         <i class="fas fa-home"></i> Home</a>
                 </li>
                 <li class="nav-item">
@@ -35,7 +35,7 @@
                         <i class="fas fa-user"></i> Profile
                     </a>
                     <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
-                        <a class="dropdown-item" href="/profile/<%= user_name %>">View Profile</a>
+                        <a class="dropdown-item" href="/profile/<%= userName %>">View Profile</a>
                         <a class="dropdown-item" href="/orders">My Orders</a>
                         <div class="dropdown-divider"></div>
                         <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
@@ -54,7 +54,16 @@
                 <div class="row">
                     <% userProducts.forEach(function(product) { %>
                         <div class="col-md-4 mb-4">
-                            <div class="card h-100">
+                            <div class="card h-100" 
+                                 data-product-id="<%= product._id %>"
+                                 data-buyer="<%= JSON.stringify({
+                                     userName: product.buyer?.userName || '',
+                                     email: product.buyer?.email || '',
+                                     phone: product.buyer?.phone || '',
+                                     address: product.buyer?.address || {}
+                                 }).replace(/"/g, '&quot;') %>"
+                                 data-transaction-price="<%= product.transactionPrice || '' %>"
+                                 data-transaction-date="<%= product.transactionDate || '' %>">
                                 <div class="product-image-wrapper">
                                     <div class="product-image-container card-img-container">
                                         <img src="/image/<%= product._id %>/0" alt="Product Image">
@@ -62,10 +71,29 @@
                                 </div>
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-start mb-2">
-                                        <h5 class="card-title mb-0"><%= product.name %></h5>
+                                        <div>
+                                            <h5 class="card-title mb-0"><%= product.name %></h5>
+                                            <span class="badge badge-<%= 
+                                                product.status === 'available' ? 'success' : 
+                                                product.status === 'reserved' ? 'warning' : 
+                                                product.status === 'closed' ? 'danger' : 'secondary' 
+                                            %>">
+                                                <%= product.status.charAt(0).toUpperCase() + product.status.slice(1) %>
+                                            </span>
+                                            <% if (product.status === 'sold' && product.buyer) { %>
+                                                <a href="#" class="ml-2" onclick="showBuyerDetails('<%= product._id %>')">
+                                                    <small class="text-primary">View Buyer Details</small>
+                                                </a>
+                                            <% } %>
+                                        </div>
                                         <div>
                                             <button class="btn btn-link text-primary p-0 mr-2" onclick="enableEdit('<%= product._id %>')">
                                                 <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-link <%= (product.status === 'closed' || product.status === 'sold') ? 'text-secondary' : 'text-warning' %> p-0 mr-2" 
+                                                    onclick="closeProduct('<%= product._id %>')"
+                                                    <%= (product.status === 'closed' || product.status === 'sold') ? 'disabled' : '' %>>
+                                                <i class="fas fa-times-circle"></i>
                                             </button>
                                             <button class="btn btn-link text-danger p-0" onclick="confirmDelete('<%= product._id %>')">
                                                 <i class="fas fa-trash"></i>
@@ -179,6 +207,45 @@
         </div>
     </div>
 
+    <!-- Buyer Details Modal -->
+    <div class="modal fade" id="buyerDetailsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Buyer Details</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="buyer-info">
+                        <div class="mb-3">
+                            <h6 class="font-weight-bold">Contact Information</h6>
+                            <p><i class="fas fa-user mr-2"></i><strong>Name:</strong> <span id="buyerName"></span></p>
+                            <p><i class="fas fa-envelope mr-2"></i><strong>Email:</strong> <span id="buyerEmail"></span></p>
+                            <p><i class="fas fa-phone mr-2"></i><strong>Phone:</strong> <span id="buyerPhone"></span></p>
+                        </div>
+                        <div class="mb-3">
+                            <h6 class="font-weight-bold">Address</h6>
+                            <p><i class="fas fa-map-marker-alt mr-2"></i><span id="buyerAddress"></span></p>
+                        </div>
+                        <div class="mb-3">
+                            <h6 class="font-weight-bold">Transaction Details</h6>
+                            <p><i class="fas fa-rupee-sign mr-2"></i><strong>Price:</strong> ₹<span id="transactionPrice"></span></p>
+                            <p><i class="fas fa-calendar mr-2"></i><strong>Date:</strong> <span id="transactionDate"></span></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="startChat()">
+                        <i class="fas fa-comment"></i> Start Chat
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         function enableEdit(productId) {
             const form = document.getElementById(`form-${productId}`);
@@ -229,6 +296,80 @@
                 console.error('Error:', error);
                 alert('Error responding to offer. Please try again.');
             });
+        }
+
+        function closeProduct(productId) {
+            if (confirm('Are you sure you want to mark this product as closed? This will hide it from the marketplace.')) {
+                fetch(`/orders/close/${productId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.reload();
+                    } else {
+                        throw new Error(data.error || 'Error closing product');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error closing product. Please try again.');
+                });
+            }
+        }
+
+        function showBuyerDetails(productId) {
+            const productCard = document.querySelector(`[data-product-id="${productId}"]`);
+            if (!productCard) {
+                console.error('Product card not found:', productId);
+                return;
+            }
+            
+            try {
+                const buyerData = JSON.parse(productCard.dataset.buyer.replace(/&quot;/g, '"'));
+                console.log('Buyer data:', buyerData); // For debugging
+                
+                if (!buyerData || !buyerData.userName) {
+                    console.error('No buyer data available');
+                    return;
+                }
+                
+                document.getElementById('buyerName').textContent = buyerData.userName || 'N/A';
+                document.getElementById('buyerEmail').textContent = buyerData.email || 'N/A';
+                document.getElementById('buyerPhone').textContent = buyerData.phone || 'N/A';
+                document.getElementById('buyerAddress').textContent = formatAddress(buyerData.address) || 'N/A';
+                document.getElementById('transactionPrice').textContent = productCard.dataset.transactionPrice || 'N/A';
+                document.getElementById('transactionDate').textContent = productCard.dataset.transactionDate ? 
+                    new Date(productCard.dataset.transactionDate).toLocaleString() : 'N/A';
+                
+                // Store buyer username for chat functionality
+                document.getElementById('buyerDetailsModal').dataset.buyerName = buyerData.userName;
+                
+                $('#buyerDetailsModal').modal('show');
+            } catch (error) {
+                console.error('Error parsing buyer data:', error);
+                alert('Error displaying buyer details');
+            }
+        }
+
+        function formatAddress(address) {
+            if (!address) return 'No address provided';
+            
+            const parts = [];
+            if (address.street) parts.push(address.street);
+            if (address.city) parts.push(address.city);
+            if (address.state) parts.push(address.state);
+            if (address.zipCode) parts.push(address.zipCode);
+            
+            return parts.length > 0 ? parts.join(', ') : 'No address provided';
+        }
+
+        function startChat() {
+            const buyerName = document.getElementById('buyerDetailsModal').dataset.buyerName;
+            window.location.href = `/messages?seller=${encodeURIComponent(buyerName)}`;
         }
     </script>
 
