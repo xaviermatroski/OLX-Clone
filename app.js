@@ -1725,11 +1725,6 @@ app.post("/respond-to-offer/:offerId", isAuthenticated, async (req, res) => {
     }
 });
 
-<<<<<<< HEAD
-// Port opening
-server.listen(3001, function() {
-    console.log("Server started on port 3001");
-=======
 // Add new routes for lost items
 app.get("/lost-items", isAuthenticated, async (req, res) => {
     try {
@@ -2426,5 +2421,4 @@ app.post("/admin/resolve-product-report/:reportId", isAuthenticated, isAuthorize
     } finally {
         session.endSession();
     }
->>>>>>> database-merging
 });
