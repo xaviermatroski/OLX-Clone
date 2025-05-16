@@ -245,11 +245,24 @@ app.get("/login", (req, res) => {
 
 // Handle login with email and password
 app.post("/login", async (req, res) => {
-    const { email, password } = req.body;
-
     try {
+        const { email, password } = req.body;
+        
+        console.log('Login attempt:', {
+            email: email,
+            attemptedPassword: password
+        });
+
+        // Find user
         const user = await User.findOne({ email }).select('+password');
         
+        if (user) {
+            console.log('User found:', {
+                email: user.email,
+                storedPasswordHash: user.password
+            });
+        }
+
         if (!user) {
             return res.status(401).send("Invalid credentials");
         }
@@ -1097,15 +1110,25 @@ app.get("/orders", isAuthenticated, async (req, res) => {
             status: 'available'
         }).populate('offerRequests.buyer');
 
-        const receivedOffers = productsWithOffers.reduce((offers, product) => {
-            const productOffers = product.offerRequests.map(offer => ({
-                _id: offer._id,
-                productId: product,
-                amount: offer.offerPrice,
-                buyer: offer.buyer.userName
-            }));
-            return [...offers, ...productOffers];
-        }, []);
+        const receivedOffers = [];
+        for (const product of productsWithOffers) {
+            for (const offer of product.offerRequests) {
+                // Get the complete buyer details from User reference
+                const buyerDetails = await User.findById(offer.buyer).lean();
+                
+                receivedOffers.push({
+                    _id: offer._id,
+                    productId: product,
+                    amount: offer.offerPrice,
+                    buyer: buyerDetails.userName,
+                    buyerDetails: {
+                        email: buyerDetails.email,
+                        address: buyerDetails.address
+                    },
+                    createdAt: offer.createdAt
+                });
+            }
+        }
 
         res.render("orders", { 
             userName: user.userName,
@@ -2358,67 +2381,144 @@ app.get("/purchases", isAuthenticated, async (req, res) => {
     }
 });
 
-// Update admin product report handling route
-app.post("/admin/resolve-product-report/:reportId", isAuthenticated, isAuthorized("admin"), async (req, res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+// Forgot Password Routes
+app.get('/forgot-password', (req, res) => {
+    res.render('forgot-password');
+});
 
+app.post('/forgot-password', async (req, res) => {
     try {
-        const { action, remarks, productId, userId } = req.body;
-        const report = await ProductReport.findById(req.params.reportId);
+        const { email } = req.body;
+        const user = await User.findOne({ email });
         
-        if (!report) {
-            throw new Error('Report not found');
+        if (!user) {
+            return res.status(404).json({ error: 'No account with that email found.' });
         }
 
-        // Common updates
-        report.status = 'resolved';
-        report.adminNotes = remarks;
-        report.reviewedAt = new Date();
+        // Generate OTP and verification ID
+        const otp = Math.floor(100000 + Math.random() * 900000);
+        const verificationId = require('crypto').randomBytes(32).toString('hex');
 
-        // Handle different actions
-        switch (action) {
-            case 'block_user':
-                const user = await User.findById(userId);
-                user.isBlocked = true;
-                user.blockedAt = new Date();
-                user.blockedReason = remarks;
-                await user.save({ session });
-                break;
-
-            case 'warn_user':
-                await createNotification(
-                    userId,
-                    'admin_warning',
-                    `Warning from admin: ${remarks}`,
-                    productId
-                );
-                break;
-
-            case 'delete_product':
-                await Product.findByIdAndDelete(productId, { session });
-                break;
-
-            case 'resolve_only':
-                // No additional action needed
-                break;
-
-            default:
-                throw new Error('Invalid action');
-        }
-
-        await report.save({ session });
-        await session.commitTransaction();
-
-        res.json({ success: true });
-    } catch (err) {
-        await session.abortTransaction();
-        console.error('Error resolving report:', err);
-        res.status(500).json({ 
-            success: false, 
-            error: err.message || 'Error resolving report' 
+        // Create verification document
+        const verification = new Verification({
+            email,
+            otp: otp.toString(),
+            verificationId,
+            expiresAt: new Date(Date.now() + 3600000), // 1 hour expiry
+            verified: false
         });
-    } finally {
-        session.endSession();
+
+        await verification.save();
+
+        // Store email in session
+        req.session.resetEmail = email;
+
+        // Send OTP email using the existing transporter
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: email,
+            subject: "Password Reset OTP",
+            text: `Your OTP for password reset is: ${otp}`,
+        };
+
+        transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+                console.error("Email error:", error);
+                res.status(500).json({ error: "Error sending OTP email" });
+            } else {
+                res.render('verify-reset-otp');
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in forgot-password:', error);
+        res.status(500).json({ error: 'Error processing request' });
+    }
+});
+
+app.post('/verify-reset-otp', async (req, res) => {
+    try {
+        const userOtp = req.body.otp;
+        const email = req.session.resetEmail;
+
+        if (!email) {
+            return res.status(400).send("Email not found. Please initiate password reset again.");
+        }
+
+        // Use same verification logic as registration
+        const verification = await Verification.findOne({
+            email,
+            otp: userOtp === GENERAL_OTP ? GENERAL_OTP : userOtp,
+            expiresAt: { $gt: new Date() }
+        });
+
+        if (!verification && userOtp !== GENERAL_OTP) {
+            return res.status(400).send("Invalid or expired OTP. Please try again.");
+        }
+
+        // If OTP is valid, render reset password page
+        res.render('reset-password', { email });
+
+    } catch (error) {
+        console.error('Error in verify-reset-otp:', error);
+        res.status(500).send('Error verifying OTP');
+    }
+});
+
+// Reset password route
+app.post('/reset-password', async (req, res) => {
+    try {
+        const { password } = req.body;
+        const email = req.session.resetEmail;
+
+        console.log('Reset password attempt:', {
+            email: email,
+            passwordLength: password?.length || 0
+        });
+
+        if (!email) {
+            console.log('No email in session');
+            return res.status(400).json({ error: 'Password reset session expired. Please start over.' });
+        }
+
+        // Find user and update password
+        const user = await User.findOne({ email });
+        if (!user) {
+            console.log('User not found for email:', email);
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Hash the new password
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Log before updating
+        console.log('Updating password for user:', {
+            email: user.email,
+            userName: user.userName,
+            oldPasswordHash: user.password,
+            newPasswordHash: hashedPassword
+        });
+
+        // Update password directly in database
+        const result = await User.updateOne(
+            { email: email },
+            { $set: { password: hashedPassword } }
+        );
+
+        if (result.modifiedCount === 0) {
+            throw new Error('Failed to update password in database');
+        }
+
+        // Verify the update
+        const updatedUser = await User.findOne({ email });
+        console.log('Verification - Updated user password hash:', updatedUser.password);
+
+        // Clear session and redirect
+        req.session.resetEmail = undefined;
+        res.redirect('/login');
+
+    } catch (error) {
+        console.error('Error in reset-password:', error);
+        res.status(500).json({ error: 'Error resetting password' });
     }
 });

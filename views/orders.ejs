@@ -36,7 +36,9 @@
                     </a>
                     <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
                         <a class="dropdown-item" href="/profile/<%= userName %>">View Profile</a>
-                        <a class="dropdown-item" href="/orders">My Orders</a>
+                        <a class="dropdown-item" href="/orders">My products</a>
+                        <a class="dropdown-item" href="/my-donations">My Donations</a>
+                        <a class="dropdown-item" href="/purchases">My Purchases</a>
                         <div class="dropdown-divider"></div>
                         <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
                         <a class="dropdown-item" href="#" onclick="document.getElementById('logout-form').submit();">Logout</a>
@@ -141,6 +143,17 @@
                                             <div>
                                                 <h6 class="mb-0"><%= offer.productId.name %></h6>
                                                 <small class="text-muted">From: <%= offer.buyer %></small>
+                                                <!-- Add View Bidder Details Link -->
+                                                <a href="#" class="ml-2" onclick="showBidderDetails(this)"
+                                                   data-bidder='<%= JSON.stringify({
+                                                       userName: offer.buyer,
+                                                       email: offer.buyerDetails?.email || null,
+                                                       address: offer.buyerDetails?.address || {},
+                                                       offerAmount: offer.amount,
+                                                       offerDate: offer.createdAt
+                                                   }) %>'>
+                                                    <small class="text-primary">View Bidder Details</small>
+                                                </a>
                                             </div>
                                         </div>
                                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -238,6 +251,44 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-primary" onclick="startChat()">
+                        <i class="fas fa-comment"></i> Start Chat
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Bidder Details Modal -->
+    <div class="modal fade" id="bidderDetailsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Bidder Details</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="bidder-info">
+                        <div class="mb-3">
+                            <h6 class="font-weight-bold">Contact Information</h6>
+                            <p><i class="fas fa-user mr-2"></i><strong>Name:</strong> <span id="bidderName"></span></p>
+                            <p><i class="fas fa-envelope mr-2"></i><strong>Email:</strong> <span id="bidderEmail"></span></p>
+                        </div>
+                        <div class="mb-3">
+                            <h6 class="font-weight-bold">Address</h6>
+                            <p><i class="fas fa-map-marker-alt mr-2"></i><span id="bidderAddress"></span></p>
+                        </div>
+                        <div class="mb-3">
+                            <h6 class="font-weight-bold">Bid Details</h6>
+                            <p><i class="fas fa-rupee-sign mr-2"></i><strong>Bid Amount:</strong> ₹<span id="bidAmount"></span></p>
+                            <p><i class="fas fa-calendar mr-2"></i><strong>Bid Date:</strong> <span id="bidDate"></span></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="startChatWithBidder()">
                         <i class="fas fa-comment"></i> Start Chat
                     </button>
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
@@ -370,6 +421,33 @@
         function startChat() {
             const buyerName = document.getElementById('buyerDetailsModal').dataset.buyerName;
             window.location.href = `/messages?seller=${encodeURIComponent(buyerName)}`;
+        }
+
+        function showBidderDetails(element) {
+            try {
+                const bidderData = JSON.parse(element.dataset.bidder);
+                console.log('Bidder data:', bidderData); // Debug log
+                
+                document.getElementById('bidderName').textContent = bidderData.userName || 'N/A';
+                document.getElementById('bidderEmail').textContent = bidderData.email || 'N/A';
+                document.getElementById('bidderAddress').textContent = formatAddress(bidderData.address) || 'No address provided';
+                document.getElementById('bidAmount').textContent = bidderData.offerAmount || 'N/A';
+                document.getElementById('bidDate').textContent = bidderData.offerDate ? 
+                    new Date(bidderData.offerDate).toLocaleString() : 'N/A';
+                
+                // Store bidder username for chat functionality
+                document.getElementById('bidderDetailsModal').dataset.bidderName = bidderData.userName;
+                
+                $('#bidderDetailsModal').modal('show');
+            } catch (error) {
+                console.error('Error parsing bidder data:', error);
+                alert('Error displaying bidder details');
+            }
+        }
+
+        function startChatWithBidder() {
+            const bidderName = document.getElementById('bidderDetailsModal').dataset.bidderName;
+            window.location.href = `/messages?seller=${encodeURIComponent(bidderName)}`;
         }
     </script>
 

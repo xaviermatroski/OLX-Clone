@@ -21,25 +21,27 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ml-auto">
                 <li class="nav-item">
-                    <a class="nav-link" href="/volunteer/<%= userName %>">
+                    <a class="nav-link" href="/user/<%= userName %>">
                         <i class="fas fa-home"></i> Home</a>
                 </li>
                 <!-- Add notifications menu item -->
-                <li class="nav-item">
+                <!-- <li class="nav-item">
                     <a class="nav-link position-relative" href="/notifications">
                         <i class="fas fa-bell"></i>
                         <% if (typeof unreadNotifications !== 'undefined' && unreadNotifications > 0) { %>
                             <span class="notification-badge"><%= unreadNotifications %></span>
                         <% } %>
                     </a>
-                </li>
+                </li> -->
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown">
                         <i class="fas fa-user"></i> Profile
                     </a>
-                    <div class="dropdown-menu dropdown-menu-right">
+                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
                         <a class="dropdown-item" href="/profile/<%= userName %>">View Profile</a>
-                        <a class="dropdown-item" href="/donations">My Donations</a>
+                        <a class="dropdown-item" href="/orders">My products</a>
+                        <a class="dropdown-item" href="/my-donations">My Donations</a>
+                        <a class="dropdown-item" href="/purchases">My Purchases</a>
                         <div class="dropdown-divider"></div>
                         <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
                         <a class="dropdown-item" href="#" onclick="document.getElementById('logout-form').submit();">Logout</a>

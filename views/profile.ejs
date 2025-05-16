@@ -82,7 +82,7 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ml-auto">
                 <li class="nav-item">
-                    <a class="nav-link" href="/volunteer/<%= user.user_name %>">
+                    <a class="nav-link" href="<%= user.role === 'volunteer' ? '/volunteer/' : '/user/' %><%= user.userName %>">
                         <i class="fas fa-home"></i> Home
                     </a>
                 </li>
@@ -91,11 +91,11 @@
                         <i class="fas fa-user"></i> Profile
                     </a>
                     <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
-                        <a class="dropdown-item" href="/profile/<%= user.user_name %>">View Profile</a>
+                        <a class="dropdown-item" href="/profile/<%= user.userName %>">View Profile</a>
                         <% if (user.role === 'volunteer') { %>
                             <a class="dropdown-item" href="/collected-donations">My Collected Donations</a>
                         <% } else if (user.role === 'user') { %>
-                            <a class="dropdown-item" href="/orders">My Orders</a>
+                            <a class="dropdown-item" href="/orders">My Porducts</a>
                         <% } %>
                         <div class="dropdown-divider"></div>
                         <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>

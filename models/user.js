@@ -87,7 +87,9 @@ const UserSchema = new mongoose.Schema({
   authCookieExpires: {
     type: Date,
     default: null
-  }
+  },
+  resetPasswordOTP: String,
+  resetPasswordExpires: Date
 }, { timestamps: true });
 
 // Hash password before saving

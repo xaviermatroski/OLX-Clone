@@ -37,7 +37,9 @@
                     </a>
                     <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
                         <a class="dropdown-item" href="/profile/<%= userName %>">View Profile</a>
-                        <a class="dropdown-item" href="/orders">My Orders</a>
+                        <a class="dropdown-item" href="/orders">My products</a>
+                        <a class="dropdown-item" href="/my-donations">My Donations</a>
+                        <a class="dropdown-item" href="/purchases">My Purchases</a>
                         <div class="dropdown-divider"></div>
                         <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
                         <a class="dropdown-item" href="#" onclick="document.getElementById('logout-form').submit();">Logout</a>
